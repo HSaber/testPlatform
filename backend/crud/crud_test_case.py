@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from models import test_case as test_case_model
 from schemas import test_case as test_case_schema
 from typing import List, Optional
@@ -7,7 +7,7 @@ def get_test_case(db: Session, test_case_id: int):
     """
     根据ID从数据库中获取单个测试用例
     """
-    return db.query(test_case_model.TestCase).filter(test_case_model.TestCase.id == test_case_id).first()
+    return db.query(test_case_model.TestCase).options(joinedload(test_case_model.TestCase.module_obj)).filter(test_case_model.TestCase.id == test_case_id).first()
 
 def get_test_cases(db: Session, skip: int = 0, limit: int = 100) -> List[test_case_model.TestCase]:
     """
@@ -15,6 +15,7 @@ def get_test_cases(db: Session, skip: int = 0, limit: int = 100) -> List[test_ca
     """
     return (
         db.query(test_case_model.TestCase)
+           .options(joinedload(test_case_model.TestCase.module_obj))
            .order_by(
             test_case_model.TestCase.priority.asc(), 
             test_case_model.TestCase.created_at.desc()
@@ -38,7 +39,8 @@ def create_test_case(db: Session, test_case: test_case_schema.TestCaseCreate) ->
         headers=test_case.headers,
         body=test_case.body,
         extract_rules=test_case.extract_rules,
-        assertions=test_case.assertions
+        assertions=test_case.assertions,
+        module_id=test_case.module_id  # 添加 module_id 字段
     )
     db.add(db_test_case)
     db.commit()

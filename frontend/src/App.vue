@@ -1,5 +1,6 @@
 <script setup>
-import { RouterView } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
+import { Folder, Collection } from '@element-plus/icons-vue'
 </script>
 
 <template>
@@ -7,9 +8,16 @@ import { RouterView } from 'vue-router'
     <el-header>
       <div class="header-content">
         <h2 style="margin: 0;">API Test Platform</h2>
-        <el-menu mode="horizontal" :router="true" :default-active="$route.path">
+        <el-menu mode="horizontal" :router="true" :default-active="$route.path" style="flex-grow: 1; justify-content: flex-end;">
           <el-menu-item index="/">用例管理</el-menu-item>
-          <el-menu-item index="/create">创建用例</el-menu-item>
+          <el-menu-item index="/modules">
+            <el-icon><Folder /></el-icon>
+            <span>模块管理</span>
+          </el-menu-item>
+          <el-menu-item index="/suites">
+            <el-icon><Collection /></el-icon>
+            <span>测试套件</span>
+          </el-menu-item>
         </el-menu>
       </div>
     </el-header>

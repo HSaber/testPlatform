@@ -1,6 +1,6 @@
 <template>
   <div class="test-case-form-container">
-    <h1>创建新用例</h1>
+    <h1>{{ isEditMode ? '编辑用例' : '创建新用例' }}</h1>
     <el-form :model="form" ref="testCaseForm" label-width="120px" class="form-wrapper">
       <el-card class="box-card">
         <template #header>
@@ -13,6 +13,18 @@
         </el-form-item>
         <el-form-item label="用例描述" prop="description">
           <el-input type="textarea" v-model="form.description" placeholder="请输入用例描述"></el-input>
+        </el-form-item>
+        <el-form-item label="模块" prop="module_id">
+           <el-tree-select
+            v-model="form.module_id"
+            :data="moduleOptions"
+            :render-after-expand="false"
+            check-strictly
+            placeholder="请选择模块"
+            clearable
+            filterable
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="优先级" prop="priority">
           <el-input-number v-model="form.priority" :min="0" label="优先级"></el-input-number>
@@ -115,7 +127,7 @@
       </el-card>
 
       <div class="form-buttons">
-        <el-button type="primary" @click="submitForm">立即创建</el-button>
+        <el-button type="primary" @click="submitForm">{{ isEditMode ? '保存修改' : '立即创建' }}</el-button>
         <el-button @click="goBack">取消</el-button>
       </div>
     </el-form>
@@ -123,71 +135,77 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { createTestCase } from '@/api';
+import { ref, watch, onMounted, computed } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { createTestCase, apiGetTestCaseDetail, apiUpdateTestCase, apiGetTestModules } from '@/api';
 import { ElMessage } from 'element-plus';
 
 const router = useRouter();
+const route = useRoute();
 const testCaseForm = ref(null);
 const bodyContentType = ref('application/json');
+const moduleOptions = ref([]); // 存储模块树形数据
+
+const isEditMode = computed(() => !!route.params.id);
 
 const form = ref({
   name: '',
   description: '',
+  module_id: null, // 修改为 module_id，初始为 null
   priority: 0,
   method: 'GET',
   url: '',
   headers: [{key: 'Content-Type', value: 'application/json'}],
   body_json: '',
   body_form_data: [],
-  extract_rules: [], // 新增提取规则数组
+  extract_rules: [],
   assertions: [],
 });
 
-const handleContentTypeChange = (value) => {
-    const contentTypeHeaderIndex = form.value.headers.findIndex(h => h.key.toLowerCase() === 'content-type');
-    if (contentTypeHeaderIndex > -1) {
-        form.value.headers[contentTypeHeaderIndex].value = value;
-    } else {
-        form.value.headers.push({ key: 'Content-Type', value: value });
-    }
-};
-
-const addHeader = () => {
-  form.value.headers.push({ key: '', value: '' });
-};
-
-const removeHeader = (index) => {
-  form.value.headers.splice(index, 1);
-};
-
-const addFormDataField = () => {
-  form.value.body_form_data.push({ key: '', value: '' });
-};
-
-const removeFormDataField = (index) => {
-  form.value.body_form_data.splice(index, 1);
-};
-
-const addExtractRule = () => {
-  form.value.extract_rules.push({ name: '', expression: '' });
-};
-
-const removeExtractRule = (index) => {
-  form.value.extract_rules.splice(index, 1);
-};
-
-const addAssertion = () => {
-  form.value.assertions.push({ check: '', comparator: 'contains', expect: '' });
-};
-
-const removeAssertion = (index) => {
-  form.value.assertions.splice(index, 1);
-};
-
 const goBack = () => {
   router.push('/');
+};
+
+// 将平铺的模块列表转换为树形结构
+const transformToTree = (items) => {
+  const result = [];
+  const itemMap = {};
+
+  // 1. 初始化 map，并处理每个节点
+  items.forEach(item => {
+    itemMap[item.id] = { 
+      ...item, 
+      value: item.id, 
+      label: item.name, 
+      children: [] 
+    };
+  });
+
+  // 2. 构建树
+  items.forEach(item => {
+    const treeItem = itemMap[item.id];
+    if (item.parent_id && itemMap[item.parent_id]) {
+      itemMap[item.parent_id].children.push(treeItem);
+    } else {
+      result.push(treeItem);
+    }
+  });
+
+  return result;
+};
+
+const loadModules = async () => {
+  try {
+    const response = await apiGetTestModules();
+    // 假设后端返回的是平铺的列表，如果后端已经是树形，则不需要 transformToTree
+    // 这里为了保险，先假设是平铺的（这也是通常 get_multi 的默认行为）
+    // 如果后端返回数据里包含 children 且是嵌套的，这个逻辑可能需要调整
+    // 但根据通常的 CRUD 实现，get_multi 返回的是 list
+    moduleOptions.value = transformToTree(response.data);
+  } catch (error) {
+    console.error('Failed to load modules:', error);
+    ElMessage.error('加载模块数据失败');
+  }
 };
 
 const submitForm = async () => {
@@ -230,12 +248,13 @@ const submitForm = async () => {
   const payload = {
     name: form.value.name,
     description: form.value.description,
+    module_id: form.value.module_id, // 使用 module_id
     priority: form.value.priority,
     method: form.value.method,
     url: form.value.url,
     headers: headersObject,
     body: requestBody,
-    extract_rules: extractRulesObject, // 添加提取规则 payload
+    extract_rules: extractRulesObject,
     assertions: processedAssertions,
   };
 
@@ -244,15 +263,75 @@ const submitForm = async () => {
   delete payload.body_form_data;
 
   try {
-    await createTestCase(payload);
-    ElMessage.success('创建成功');
+    if (isEditMode.value) {
+      await apiUpdateTestCase(route.params.id, payload);
+      ElMessage.success('更新成功');
+    } else {
+      await createTestCase(payload);
+      ElMessage.success('创建成功');
+    }
     router.push('/');
   } catch (error) {
     console.error(error);
-    ElMessage.error('创建失败');
+    ElMessage.error(isEditMode.value ? '更新失败' : '创建失败');
   }
 };
 
+const loadTestCaseData = async (id) => {
+  try {
+    const response = await apiGetTestCaseDetail(id);
+    const data = response.data;
+
+    // 还原 headers
+    const headersArray = Object.entries(data.headers || {}).map(([key, value]) => ({
+      key,
+      value
+    }));
+    // 确保 Content-Type 存在
+    if (!headersArray.some(h => h.key.toLowerCase() === 'content-type')) {
+        headersArray.push({ key: 'Content-Type', value: 'application/json' });
+    }
+
+    // 还原 body_form_data
+    const formDataArray = Object.entries(data.body_form_data || {}).map(([key, value]) => ({
+        key,
+        value
+    }));
+
+    // 还原 extract_rules
+    // 后端存储的是字典 {name: expression}，前端需要数组 [{name, expression}]
+    const extractRulesArray = Object.entries(data.extract_rules || {}).map(([name, expression]) => ({
+      name,
+      expression
+    }));
+
+    form.value = {
+      ...data,
+      headers: headersArray,
+      body_form_data: formDataArray,
+      extract_rules: extractRulesArray,
+      assertions: data.assertions || [],
+      module_id: data.module_id // 确保加载 module_id
+    };
+
+    // 设置 bodyContentType
+    const contentTypeHeader = headersArray.find(h => h.key.toLowerCase() === 'content-type');
+    if (contentTypeHeader) {
+        bodyContentType.value = contentTypeHeader.value;
+    }
+
+  } catch (error) {
+    console.error('Failed to load test case:', error);
+    ElMessage.error('加载用例数据失败');
+  }
+};
+
+onMounted(() => {
+  loadModules(); // 加载模块数据
+  if (isEditMode.value) {
+    loadTestCaseData(route.params.id);
+  }
+});
 </script>
 
 <style scoped>
@@ -295,3 +374,5 @@ const submitForm = async () => {
   justify-content: center;
 }
 </style>
+
+<!-- 请在此处删除所有剩余的代码，包括多余的 <template> 标签 -->
