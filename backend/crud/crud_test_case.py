@@ -58,6 +58,21 @@ def update_test_case(db: Session, test_case_id: int, test_case: test_case_schema
         db.refresh(db_test_case)
     return db_test_case
 
+def reorder_test_cases(db: Session, test_case_ids: List[int]) -> List[test_case_model.TestCase]:
+    """根据提供的ID列表重新排序测试用例"""
+    updated_test_cases = []
+    for index, test_case_id in enumerate(test_case_ids):
+        db_test_case = db.query(test_case_model.TestCase).filter(test_case_model.TestCase.id == test_case_id).first()
+        if db_test_case:
+            db_test_case.priority = index  # 使用索引作为新的优先级
+            updated_test_cases.append(db_test_case)
+    db.bulk_save_objects(updated_test_cases)
+    db.commit()
+    # 刷新以获取更新后的对象状态
+    for tc in updated_test_cases:
+        db.refresh(tc)
+    return updated_test_cases
+
 def update_test_case_priority(db: Session, test_case_id: int, priority: int) -> Optional[test_case_model.TestCase]:
     """
     更新数据库中测试用例的优先级
@@ -67,4 +82,14 @@ def update_test_case_priority(db: Session, test_case_id: int, priority: int) -> 
         db_test_case.priority = priority
         db.commit()
         db.refresh(db_test_case)
+    return db_test_case
+
+def delete_test_case(db: Session, test_case_id: int) -> Optional[test_case_model.TestCase]:
+    """
+    从数据库中删除一个测试用例
+    """
+    db_test_case = get_test_case(db, test_case_id)
+    if db_test_case:
+        db.delete(db_test_case)
+        db.commit()
     return db_test_case

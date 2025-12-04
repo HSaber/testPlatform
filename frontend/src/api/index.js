@@ -13,6 +13,20 @@ const apiClient = axios.create({
 export const apiGetTestCases = () => {
   return apiClient.get('/testcases/list');
 };
+// 测试用例排序
+export const apiReorderTestCases = (testCaseIds) => {
+  return apiClient.post(`/testcases/reorder`, { test_case_ids: testCaseIds });
+};
+
+// 删除测试用例
+export const apiDeleteTestCase = (testCaseId) => {
+  return apiClient.delete(`/testcases/${testCaseId}`);
+};
+
+// 更新测试用例
+export const apiUpdateTestCase = (testCaseId, testCaseData) => {
+  return apiClient.put(`/testcases/${testCaseId}`, testCaseData);
+};
 
 // 创建测试用例
 export const createTestCase = (testCaseData) => {
