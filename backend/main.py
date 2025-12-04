@@ -69,6 +69,15 @@ def batch_delete_test_cases(batch_delete: test_case_schema.TestCaseBatchDelete, 
     deleted_count = crud_test_case.delete_test_cases(db=db, test_case_ids=batch_delete.test_case_ids)
     return {"message": "Test cases deleted successfully", "deleted_count": deleted_count}
 
+
+@app.post("/testcases/copy/{test_case_id}", response_model=test_case_schema.TestCase)
+def copy_test_case(test_case_id: int, db: Session = Depends(get_db)):
+    db_test_case = crud_test_case.copy_test_case(db, test_case_id=test_case_id)
+    if db_test_case is None:
+        raise HTTPException(status_code=404, detail="Test case not found")
+    return db_test_case
+
+
 @app.get("/testcases/list", response_model=List[test_case_schema.TestCase])
 def read_test_cases(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     test_cases = crud_test_case.get_test_cases(db, skip=skip, limit=limit)

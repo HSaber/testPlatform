@@ -23,9 +23,10 @@
       <el-table-column prop="name" label="用例名称" class-name="name-column-clickable"></el-table-column>
       <el-table-column prop="method" label="请求方法" width="120"></el-table-column>
       <el-table-column prop="url" label="URL"></el-table-column>
-      <el-table-column label="操作" width="200">
+      <el-table-column label="操作" width="250">
         <template #default="scope">
           <el-button size="small" @click.stop="handleEdit(scope.row)">编辑</el-button>
+          <el-button size="small" type="success" @click.stop="handleCopy(scope.row)">复制</el-button>
           <el-button size="small" type="danger" @click.stop="handleDelete(scope.row)">删除</el-button>
         </template>
       </el-table-column>
@@ -45,7 +46,7 @@ import { ref, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import Sortable from 'sortablejs';
-import { apiGetTestCases, apiReorderTestCases, apiDeleteTestCase, apiUpdateTestCase, apiBatchDeleteTestCases } from '@/api';
+import { apiGetTestCases, apiReorderTestCases, apiDeleteTestCase, apiUpdateTestCase, apiBatchDeleteTestCases, apiCopyTestCase } from '@/api';
 import TestCaseDetail from './TestCaseDetail.vue';
 
 const testCases = ref([]);
@@ -169,6 +170,20 @@ const handleSaveTestCase = async (testCaseData) => {
 
 const handleEdit = (row) => {
   showDetailDrawer(row);
+};
+
+const handleCopy = async (row) => {
+  try {
+    loading.value = true;
+    await apiCopyTestCase(row.id);
+    ElMessage.success('复制成功');
+    await fetchTestCases();
+  } catch (error) {
+    console.error("复制失败:", error);
+    ElMessage.error('复制失败');
+  } finally {
+    loading.value = false;
+  }
 };
 
 const handleDelete = (row) => {

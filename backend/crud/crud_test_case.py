@@ -103,3 +103,28 @@ def delete_test_cases(db: Session, test_case_ids: List[int]) -> int:
     result = db.query(test_case_model.TestCase).filter(test_case_model.TestCase.id.in_(test_case_ids)).delete(synchronize_session=False)
     db.commit()
     return result
+
+
+def copy_test_case(db: Session, test_case_id: int):
+    # 获取源用例
+    db_test_case = get_test_case(db, test_case_id)
+    if not db_test_case:
+        return None
+    
+    # 创建新用例数据，排除id、created_at和updated_at
+    exclude_columns = {"id", "created_at", "updated_at"}
+    new_data = {
+        column.name: getattr(db_test_case, column.name)
+        for column in test_case_model.TestCase.__table__.columns
+        if column.name not in exclude_columns
+    }
+    
+    # 修改名称以示区分
+    new_data["name"] = f"{new_data['name']}_Copy"
+    
+    # 创建新实例
+    new_test_case = test_case_model.TestCase(**new_data)
+    db.add(new_test_case)
+    db.commit()
+    db.refresh(new_test_case)
+    return new_test_case

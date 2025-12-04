@@ -79,6 +79,20 @@
       <el-card class="box-card">
         <template #header>
           <div class="card-header">
+            <span>提取规则 (Extract Rules)</span>
+            <el-button class="button" type="text" @click="addExtractRule">添加一项</el-button>
+          </div>
+        </template>
+        <div v-for="(rule, index) in form.extract_rules" :key="index" class="dynamic-item">
+          <el-input v-model="rule.name" placeholder="变量名 (e.g. token)" class="input-with-select"></el-input>
+          <el-input v-model="rule.expression" placeholder="提取表达式 (e.g. json.data.token)" class="input-with-select"></el-input>
+          <el-button type="danger" @click.prevent="removeExtractRule(index)">删除</el-button>
+        </div>
+      </el-card>
+
+      <el-card class="box-card">
+        <template #header>
+          <div class="card-header">
             <span>断言规则 (Assertions)</span>
             <el-button class="button" type="text" @click="addAssertion">添加一项</el-button>
           </div>
@@ -127,6 +141,7 @@ const form = ref({
   headers: [{key: 'Content-Type', value: 'application/json'}],
   body_json: '',
   body_form_data: [],
+  extract_rules: [], // 新增提取规则数组
   assertions: [],
 });
 
@@ -155,6 +170,14 @@ const removeFormDataField = (index) => {
   form.value.body_form_data.splice(index, 1);
 };
 
+const addExtractRule = () => {
+  form.value.extract_rules.push({ name: '', expression: '' });
+};
+
+const removeExtractRule = (index) => {
+  form.value.extract_rules.splice(index, 1);
+};
+
 const addAssertion = () => {
   form.value.assertions.push({ check: '', comparator: 'contains', expect: '' });
 };
@@ -174,6 +197,12 @@ const submitForm = async () => {
   // 预处理数据
   const headersObject = form.value.headers.reduce((acc, cur) => {
     if (cur.key) acc[cur.key] = cur.value;
+    return acc;
+  }, {});
+
+  // 处理提取规则
+  const extractRulesObject = form.value.extract_rules.reduce((acc, cur) => {
+    if (cur.name && cur.expression) acc[cur.name] = cur.expression;
     return acc;
   }, {});
 
@@ -206,16 +235,21 @@ const submitForm = async () => {
     url: form.value.url,
     headers: headersObject,
     body: requestBody,
+    extract_rules: extractRulesObject, // 添加提取规则 payload
     assertions: processedAssertions,
   };
 
+  // Remove helper properties that are not part of the API schema
+  delete payload.body_json;
+  delete payload.body_form_data;
+
   try {
     await createTestCase(payload);
-    ElMessage.success('用例创建成功！');
+    ElMessage.success('创建成功');
     router.push('/');
   } catch (error) {
-    console.error('创建用例失败:', error);
-    ElMessage.error('创建用例失败，请检查控制台输出。');
+    console.error(error);
+    ElMessage.error('创建失败');
   }
 };
 
