@@ -33,6 +33,11 @@ export const apiUpdateTestCase = (testCaseId, testCaseData) => {
   return apiClient.put(`/testcases/${testCaseId}`, testCaseData);
 };
 
+// 复制测试用例
+export const apiCopyTestCase = (testCaseId) => {
+  return apiClient.post(`/testcases/copy/${testCaseId}`);
+};
+
 // 创建测试用例
 export const createTestCase = (testCaseData) => {
     return apiClient.post('/testcases', testCaseData);
