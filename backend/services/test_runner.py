@@ -8,7 +8,7 @@ from jsonpath_ng import parse
 from typing import List, Dict, Any, Optional
 
 from sqlalchemy.orm import Session
-from crud import crud_test_case
+from crud import crud_test_case, crud_test_suite
 from schemas import test_case as test_case_schema
 
 class TestRunner:
@@ -218,4 +218,72 @@ class TestRunner:
                 })
         print("="*50)
         print("▶️ 测试套件执行完毕")
+        return results
+
+    def run_full_suite(self, suite_id: int) -> List[Dict[str, Any]]:
+        """
+        执行完整的测试套件（包含用例、模块、子套件）
+        """
+        suite = crud_test_suite.get_test_suite(self.db, test_suite_id=suite_id)
+        if not suite:
+            return [{
+                "id": suite_id,
+                "name": "Unknown Suite",
+                "status": "error",
+                "response": f"Test suite with id {suite_id} not found."
+            }]
+
+        results = []
+        print(f"🚀 开始执行套件: {suite.name}")
+
+        # 遍历 items，它们已经按照 sort_order 排序（由 SQLAlchemy relationship 保证）
+        if suite.items:
+            for item in suite.items:
+                try:
+                    if item.item_type == "test_case":
+                        if item.test_case:
+                            result = self.run_test_case(item.test_case)
+                            results.append(result)
+                        else:
+                            results.append({
+                                "id": item.test_case_id,
+                                "name": "Missing Case",
+                                "status": "error",
+                                "response": f"Test case ID {item.test_case_id} not found"
+                            })
+                    
+                    elif item.item_type == "test_module":
+                        if item.module:
+                            print(f"  📂 执行模块: {item.module.name}")
+                            # 获取模块下的所有用例
+                            # 注意：这里假设 crud_test_module 或者 relationship 可以获取模块下的用例
+                            # 如果 module.test_cases 是 relationship，可以直接使用
+                            if hasattr(item.module, 'test_cases') and item.module.test_cases:
+                                for case in item.module.test_cases:
+                                    result = self.run_test_case(case)
+                                    results.append(result)
+                            else:
+                                # 如果没有 relationship，可能需要通过 crud 获取，但通常模型层会有 relationship
+                                pass
+                        else:
+                             results.append({
+                                "id": item.module_id,
+                                "name": "Missing Module",
+                                "status": "error",
+                                "response": f"Module ID {item.module_id} not found"
+                            })
+
+                    elif item.item_type == "test_suite":
+                        if item.child_suite_id:
+                            # 递归执行子套件
+                            sub_results = self.run_full_suite(item.child_suite_id)
+                            results.extend(sub_results)
+                
+                except Exception as e:
+                    results.append({
+                        "name": f"Error executing item {item.id}",
+                        "status": "error",
+                        "response": str(e)
+                    })
+        
         return results

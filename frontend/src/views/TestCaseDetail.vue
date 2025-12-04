@@ -1,61 +1,55 @@
 <template>
   <el-drawer
     :model-value="visible"
-    :title="isEditMode ? '编辑用例' : '用例详情'"
+    title="用例详情"
     direction="rtl"
     @close="handleClose"
     size="50%"
   >
     <div class="detail-container" v-if="testCaseData">
-      <el-form :model="testCaseData" label-width="120px" ref="formRef">
-        <el-form-item label="用例名称" prop="name">
-          <el-input v-model="testCaseData.name"></el-input>
-        </el-form-item>
-        <el-form-item label="描述" prop="description">
-          <el-input type="textarea" v-model="testCaseData.description"></el-input>
-        </el-form-item>
-        <el-form-item label="请求方法" prop="method">
-            <el-select v-model="testCaseData.method" placeholder="请选择请求方法">
-                <el-option label="GET" value="GET"></el-option>
-                <el-option label="POST" value="POST"></el-option>
-                <el-option label="PUT" value="PUT"></el-option>
-                <el-option label="DELETE" value="DELETE"></el-option>
-            </el-select>
-        </el-form-item>
-        <el-form-item label="URL" prop="url">
-          <el-input v-model="testCaseData.url"></el-input>
-        </el-form-item>
-        <el-form-item label="Content-Type" prop="content_type">
-          <el-input v-model="testCaseData.content_type"></el-input>
-        </el-form-item>
-        <el-form-item label="请求头 (Headers)" prop="headers">
-          <el-input type="textarea" :rows="5" v-model="editableHeaders"></el-input>
-        </el-form-item>
-        <el-form-item label="请求体 (Body)" prop="body">
-          <el-input type="textarea" :rows="8" v-model="editableBody"></el-input>
-        </el-form-item>
-        <el-form-item label="提取规则" prop="extract_rules">
-          <el-input type="textarea" :rows="5" v-model="editableExtractRules"></el-input>
-        </el-form-item>
-        <el-form-item label="断言" prop="assertions">
-          <el-input type="textarea" :rows="5" v-model="editableAssertions"></el-input>
-        </el-form-item>
-      </el-form>
+      <el-descriptions :column="1" border>
+        <el-descriptions-item label="ID">{{ testCaseData.id }}</el-descriptions-item>
+        <el-descriptions-item label="用例名称">{{ testCaseData.name }}</el-descriptions-item>
+        <el-descriptions-item label="模块">
+          {{ testCaseData.module_obj ? testCaseData.module_obj.name : (testCaseData.module || '默认') }}
+        </el-descriptions-item>
+        <el-descriptions-item label="描述">{{ testCaseData.description || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="请求方法">
+          <el-tag :type="getMethodTagType(testCaseData.method)">{{ testCaseData.method }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="URL">{{ testCaseData.url }}</el-descriptions-item>
+        <el-descriptions-item label="Content-Type">{{ testCaseData.content_type || '-' }}</el-descriptions-item>
+      </el-descriptions>
+
+      <div class="section-title">请求头 (Headers)</div>
+      <div class="code-block">
+        <pre>{{ jsonToString(testCaseData.headers) }}</pre>
+      </div>
+
+      <div class="section-title">请求体 (Body)</div>
+      <div class="code-block">
+        <pre>{{ jsonToString(testCaseData.body) }}</pre>
+      </div>
+
+      <div class="section-title">提取规则</div>
+      <div class="code-block">
+        <pre>{{ jsonToString(testCaseData.extract_rules) }}</pre>
+      </div>
+
+      <div class="section-title">断言</div>
+      <div class="code-block">
+        <pre>{{ jsonToString(testCaseData.assertions) }}</pre>
+      </div>
     </div>
     <div v-else>
       <p>没有可显示的用例数据。</p>
     </div>
-    <template #footer>
-      <div style="flex: auto">
-        <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" @click="handleSave">保存</el-button>
-      </div>
-    </template>
+    <!-- 移除底部保存按钮，只读模式不需要 -->
   </el-drawer>
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, watch, computed } from 'vue';
+import { defineProps, defineEmits, ref, watch } from 'vue';
 
 const props = defineProps({
   visible: {
@@ -68,12 +62,9 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['close', 'save']);
+const emit = defineEmits(['close']);
 
 const testCaseData = ref(null);
-const formRef = ref(null);
-
-const isEditMode = computed(() => !!props.testCase);
 
 watch(() => props.testCase, (newVal) => {
   if (newVal) {
@@ -83,60 +74,55 @@ watch(() => props.testCase, (newVal) => {
   }
 }, { immediate: true, deep: true });
 
-
 const jsonToString = (json) => {
     if (json === null || json === undefined) return '';
+    // 如果是空对象或空数组，显示 '-'
+    if (typeof json === 'object' && Object.keys(json).length === 0) return '-';
     try {
         return JSON.stringify(json, null, 2);
     } catch (e) {
-        return '';
+        return String(json);
     }
 }
 
-const stringToJson = (str) => {
-    if (!str) return null;
-    try {
-        return JSON.parse(str);
-    } catch (e) {
-        // 可以选择在这里处理错误，例如返回一个错误提示
-        console.error("Invalid JSON string:", e);
-        return null; 
-    }
+const getMethodTagType = (method) => {
+  const map = {
+    'GET': 'success',
+    'POST': 'primary',
+    'PUT': 'warning',
+    'DELETE': 'danger'
+  };
+  return map[method] || 'info';
 }
-
-const editableHeaders = computed({
-    get: () => jsonToString(testCaseData.value?.headers),
-    set: (val) => { if(testCaseData.value) testCaseData.value.headers = stringToJson(val) }
-})
-
-const editableBody = computed({
-    get: () => jsonToString(testCaseData.value?.body),
-    set: (val) => { if(testCaseData.value) testCaseData.value.body = stringToJson(val) }
-})
-
-const editableExtractRules = computed({
-    get: () => jsonToString(testCaseData.value?.extract_rules),
-    set: (val) => { if(testCaseData.value) testCaseData.value.extract_rules = stringToJson(val) }
-})
-
-const editableAssertions = computed({
-    get: () => jsonToString(testCaseData.value?.assertions),
-    set: (val) => { if(testCaseData.value) testCaseData.value.assertions = stringToJson(val) }
-})
-
 
 const handleClose = () => {
   emit('close');
 };
-
-const handleSave = () => {
-  emit('save', testCaseData.value);
-};
-
 </script>
 
 <style scoped>
 .detail-container {
   padding: 20px;
+}
+.section-title {
+  margin-top: 20px;
+  margin-bottom: 10px;
+  font-weight: bold;
+  color: #303133;
+  border-left: 4px solid #409EFF;
+  padding-left: 10px;
+}
+.code-block {
+  background-color: #f5f7fa;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 10px;
+  overflow-x: auto;
+}
+.code-block pre {
+  margin: 0;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  font-size: 14px;
+  line-height: 1.5;
 }
 </style>

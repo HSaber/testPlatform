@@ -21,6 +21,11 @@
       <el-table-column type="selection" width="55" />
       <el-table-column prop="id" label="ID" width="80"></el-table-column>
       <el-table-column prop="name" label="用例名称" class-name="name-column-clickable"></el-table-column>
+      <el-table-column label="模块" width="120">
+        <template #default="scope">
+          {{ scope.row.module_obj ? scope.row.module_obj.name : (scope.row.module || '默认') }}
+        </template>
+      </el-table-column>
       <el-table-column prop="method" label="请求方法" width="120"></el-table-column>
       <el-table-column prop="url" label="URL"></el-table-column>
       <el-table-column label="操作" width="250">
@@ -169,7 +174,7 @@ const handleSaveTestCase = async (testCaseData) => {
 };
 
 const handleEdit = (row) => {
-  showDetailDrawer(row);
+  router.push(`/edit/${row.id}`);
 };
 
 const handleCopy = async (row) => {

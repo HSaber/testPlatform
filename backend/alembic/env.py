@@ -13,6 +13,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 
 # import all models here for Alembic to pick up
 from backend.models.test_case import Base as TestCaseBase
+import backend.models.test_module  # <--- 添加这一行，确保 TestModule 模型被加载
+import backend.models.test_suite   # <--- 新增：确保 TestSuite 模型被加载
 
 
 # this is the Alembic Config object, which provides

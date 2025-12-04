@@ -1,6 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import TestCaseList from '../views/TestCaseList.vue'
 import TestCaseForm from '../views/TestCaseForm.vue'
+import ModuleManagement from '../views/ModuleManagement.vue'
+// 1. 导入组件
+import TestSuiteManagement from '../views/TestSuiteManagement.vue'
 
 const routes = [
   {
@@ -9,16 +12,26 @@ const routes = [
     component: TestCaseList
   },
   {
+    path: '/modules',
+    name: 'ModuleManagement',
+    component: ModuleManagement
+  },
+  // 2. 添加路由配置
+  {
+    path: '/suites',
+    name: 'TestSuiteManagement',
+    component: TestSuiteManagement
+  },
+  {
     path: '/create',
     name: 'CreateTestCase',
     component: TestCaseForm
   },
-  // 之后我们会添加编辑页面的路由
-  // {
-  //   path: '/edit/:id',
-  //   name: 'EditTestCase',
-  //   component: TestCaseForm
-  // }
+  {
+    path: '/edit/:id',
+    name: 'EditTestCase',
+    component: TestCaseForm
+  }
 ]
 
 const router = createRouter({
