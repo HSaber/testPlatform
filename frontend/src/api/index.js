@@ -23,6 +23,11 @@ export const apiDeleteTestCase = (testCaseId) => {
   return apiClient.delete(`/testcases/${testCaseId}`);
 };
 
+// 批量删除测试用例
+export const apiBatchDeleteTestCases = (testCaseIds) => {
+  return apiClient.post('/testcases/batch_delete', { test_case_ids: testCaseIds });
+};
+
 // 更新测试用例
 export const apiUpdateTestCase = (testCaseId, testCaseData) => {
   return apiClient.put(`/testcases/${testCaseId}`, testCaseData);

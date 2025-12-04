@@ -31,3 +31,7 @@ class TestCase(TestCaseBase):
 
 class TestSuiteExecute(BaseModel):
     test_case_ids: List[int]
+
+
+class TestCaseBatchDelete(BaseModel):
+    test_case_ids: List[int]

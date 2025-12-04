@@ -11,6 +11,12 @@
         <el-form-item label="用例名称" prop="name" required>
           <el-input v-model="form.name"></el-input>
         </el-form-item>
+        <el-form-item label="用例描述" prop="description">
+          <el-input type="textarea" v-model="form.description" placeholder="请输入用例描述"></el-input>
+        </el-form-item>
+        <el-form-item label="优先级" prop="priority">
+          <el-input-number v-model="form.priority" :min="0" label="优先级"></el-input-number>
+        </el-form-item>
         <el-form-item label="请求方法" prop="method" required>
           <el-select v-model="form.method" placeholder="请选择请求方法">
             <el-option label="GET" value="GET"></el-option>
@@ -114,6 +120,8 @@ const bodyContentType = ref('application/json');
 
 const form = ref({
   name: '',
+  description: '',
+  priority: 0,
   method: 'GET',
   url: '',
   headers: [{key: 'Content-Type', value: 'application/json'}],
@@ -192,6 +200,8 @@ const submitForm = async () => {
 
   const payload = {
     name: form.value.name,
+    description: form.value.description,
+    priority: form.value.priority,
     method: form.value.method,
     url: form.value.url,
     headers: headersObject,

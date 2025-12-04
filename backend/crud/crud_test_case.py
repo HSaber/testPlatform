@@ -93,3 +93,13 @@ def delete_test_case(db: Session, test_case_id: int) -> Optional[test_case_model
         db.delete(db_test_case)
         db.commit()
     return db_test_case
+
+def delete_test_cases(db: Session, test_case_ids: List[int]) -> int:
+    """
+    批量删除测试用例
+    """
+    # 使用 in_ 操作符进行批量查询和删除
+    # synchronize_session=False 用于提高性能，因为我们不打算立即使用这些对象
+    result = db.query(test_case_model.TestCase).filter(test_case_model.TestCase.id.in_(test_case_ids)).delete(synchronize_session=False)
+    db.commit()
+    return result

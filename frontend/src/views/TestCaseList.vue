@@ -2,10 +2,23 @@
   <div class="test-case-list">
     <div class="toolbar">
       <h1>用例管理</h1>
-      <el-button type="primary" @click="goToCreatePage">创建用例</el-button>
+      <div>
+        <el-button type="primary" @click="goToCreatePage">创建用例</el-button>
+        <el-button type="danger" @click="handleBatchDelete" :disabled="selectedTestCases.length === 0">批量删除</el-button>
+      </div>
     </div>
 
-    <el-table :data="testCases" stripe v-loading="loading" style="width: 100%" row-key="id" ref="tableRef" @cell-click="handleCellClick">
+    <el-table 
+      :data="testCases" 
+      stripe 
+      v-loading="loading" 
+      style="width: 100%" 
+      row-key="id" 
+      ref="tableRef" 
+      @cell-click="handleCellClick"
+      @selection-change="handleSelectionChange"
+    >
+      <el-table-column type="selection" width="55" />
       <el-table-column prop="id" label="ID" width="80"></el-table-column>
       <el-table-column prop="name" label="用例名称" class-name="name-column-clickable"></el-table-column>
       <el-table-column prop="method" label="请求方法" width="120"></el-table-column>
@@ -29,10 +42,10 @@
 
 <script setup>
 import { ref, onMounted, nextTick } from 'vue';
-import { useRouter } from 'vue-router'; // <--- 添加这行导入
+import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import Sortable from 'sortablejs';
-import { apiGetTestCases, apiReorderTestCases, apiDeleteTestCase, apiUpdateTestCase } from '@/api';
+import { apiGetTestCases, apiReorderTestCases, apiDeleteTestCase, apiUpdateTestCase, apiBatchDeleteTestCases } from '@/api';
 import TestCaseDetail from './TestCaseDetail.vue';
 
 const testCases = ref([]);
@@ -41,6 +54,39 @@ const router = useRouter();
 const tableRef = ref(null);
 const detailDrawerVisible = ref(false);
 const selectedTestCase = ref(null);
+const selectedTestCases = ref([]);
+
+const handleSelectionChange = (selection) => {
+  selectedTestCases.value = selection;
+};
+
+const handleBatchDelete = () => {
+  if (selectedTestCases.value.length === 0) return;
+
+  ElMessageBox.confirm(
+    `确定要删除选中的 ${selectedTestCases.value.length} 个用例吗？`,
+    '警告',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  ).then(async () => {
+    try {
+      const ids = selectedTestCases.value.map(item => item.id);
+      await apiBatchDeleteTestCases(ids);
+      ElMessage.success('批量删除成功');
+      // 重新获取列表
+      await fetchTestCases();
+      selectedTestCases.value = []; // 清空选中状态
+    } catch (error) {
+      console.error("批量删除失败:", error);
+      ElMessage.error('批量删除失败');
+    }
+  }).catch(() => {
+    ElMessage.info('已取消删除');
+  });
+};
 
 const handleCellClick = (row, column) => {
   if (column.className === 'name-column-clickable') {
