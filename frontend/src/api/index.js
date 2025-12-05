@@ -99,3 +99,17 @@ export const apiDeleteTestSuite = (testSuiteId) => {
 export const apiExecuteTestSuite = (testSuiteId) => {
   return apiClient.post(`/suites/run/${testSuiteId}`);
 };
+
+// -----------------------------------------------------------------------------
+// Test Reports API
+// -----------------------------------------------------------------------------
+
+// 获取测试报告列表
+export const apiGetTestReports = (skip = 0, limit = 100) => {
+  return apiClient.get('/reports/list', { params: { skip, limit } });
+};
+
+// 获取单个测试报告详情
+export const apiGetTestReportDetail = (reportId) => {
+  return apiClient.get(`/reports/${reportId}`);
+};

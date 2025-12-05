@@ -305,12 +305,18 @@ const loadTestCaseData = async (id) => {
       expression
     }));
 
+    // 处理 assertions，确保 expect 是字符串以正确显示在输入框
+    const assertionsArray = (data.assertions || []).map(a => ({
+      ...a,
+      expect: typeof a.expect === 'object' ? JSON.stringify(a.expect) : a.expect
+    }));
+
     form.value = {
       ...data,
       headers: headersArray,
       body_form_data: formDataArray,
       extract_rules: extractRulesArray,
-      assertions: data.assertions || [],
+      assertions: assertionsArray,
       module_id: data.module_id // 确保加载 module_id
     };
 
