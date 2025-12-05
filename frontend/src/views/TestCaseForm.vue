@@ -208,6 +208,52 @@ const loadModules = async () => {
   }
 };
 
+// Headers 操作
+const addHeader = () => {
+  form.value.headers.push({ key: '', value: '' });
+};
+
+const removeHeader = (index) => {
+  form.value.headers.splice(index, 1);
+};
+
+// Body Content-Type 处理
+const handleContentTypeChange = (val) => {
+  const contentTypeHeader = form.value.headers.find(h => h.key.toLowerCase() === 'content-type');
+  if (contentTypeHeader) {
+    contentTypeHeader.value = val;
+  } else {
+    form.value.headers.push({ key: 'Content-Type', value: val });
+  }
+};
+
+// Form Data 操作
+const addFormDataField = () => {
+  form.value.body_form_data.push({ key: '', value: '' });
+};
+
+const removeFormDataField = (index) => {
+  form.value.body_form_data.splice(index, 1);
+};
+
+// 提取规则操作
+const addExtractRule = () => {
+  form.value.extract_rules.push({ name: '', expression: '' });
+};
+
+const removeExtractRule = (index) => {
+  form.value.extract_rules.splice(index, 1);
+};
+
+// 断言规则操作
+const addAssertion = () => {
+  form.value.assertions.push({ check: '', comparator: 'json_equals', expect: '' });
+};
+
+const removeAssertion = (index) => {
+  form.value.assertions.splice(index, 1);
+};
+
 const submitForm = async () => {
   // Trim the URL value before processing
   form.value.url = form.value.url.trim();
@@ -287,16 +333,32 @@ const loadTestCaseData = async (id) => {
       key,
       value
     }));
-    // 确保 Content-Type 存在
-    if (!headersArray.some(h => h.key.toLowerCase() === 'content-type')) {
-        headersArray.push({ key: 'Content-Type', value: 'application/json' });
-    }
+    // 删除此处强制添加 Content-Type 的代码
 
-    // 还原 body_form_data
-    const formDataArray = Object.entries(data.body_form_data || {}).map(([key, value]) => ({
-        key,
-        value
-    }));
+    // 还原 Body 数据逻辑优化
+    let bodyJsonStr = '';
+    let bodyFormDataArray = [];
+    
+    // 获取 Content-Type
+    const contentTypeHeader = headersArray.find(h => h.key.toLowerCase() === 'content-type');
+    const contentType = contentTypeHeader ? contentTypeHeader.value : 'application/json';
+
+    if (data.body) {
+        if (contentType.includes('application/json')) {
+            // 如果是 JSON 类型，格式化为字符串
+            try {
+                bodyJsonStr = JSON.stringify(data.body, null, 2);
+            } catch (e) {
+                bodyJsonStr = typeof data.body === 'string' ? data.body : '';
+            }
+        } else {
+            // 如果是表单类型，转换为数组格式
+            bodyFormDataArray = Object.entries(data.body || {}).map(([key, value]) => ({
+                key,
+                value
+            }));
+        }
+    }
 
     // 还原 extract_rules
     // 后端存储的是字典 {name: expression}，前端需要数组 [{name, expression}]
@@ -314,17 +376,15 @@ const loadTestCaseData = async (id) => {
     form.value = {
       ...data,
       headers: headersArray,
-      body_form_data: formDataArray,
+      body_json: bodyJsonStr, // 赋值 JSON 字符串
+      body_form_data: bodyFormDataArray, // 赋值 Form Data 数组
       extract_rules: extractRulesArray,
       assertions: assertionsArray,
       module_id: data.module_id // 确保加载 module_id
     };
 
     // 设置 bodyContentType
-    const contentTypeHeader = headersArray.find(h => h.key.toLowerCase() === 'content-type');
-    if (contentTypeHeader) {
-        bodyContentType.value = contentTypeHeader.value;
-    }
+    bodyContentType.value = contentType;
 
   } catch (error) {
     console.error('Failed to load test case:', error);

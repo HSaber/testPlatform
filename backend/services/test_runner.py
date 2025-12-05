@@ -15,6 +15,8 @@ class TestRunner:
     def __init__(self, db: Session):
         self.db = db
         self.variables: Dict[str, Any] = {}
+        # 初始化一个 Client 实例用于保持会话（Cookies）
+        self.client = httpx.Client(verify=False)
 
     def _replace_variables(self, data: Any) -> Any:
         if isinstance(data, dict):
@@ -22,17 +24,15 @@ class TestRunner:
         elif isinstance(data, list):
             return [self._replace_variables(i) for i in data]
         elif isinstance(data, str):
-            # 完整匹配，例如 "{{base_url}}/api/login"
-            match = re.fullmatch(r"\{\{(\w+)\}\}(.*)", data)
-            if match:
-                var_name, remaining_path = match.groups()
+            # 检查是否仅包含一个变量，例如 "{{token}}"
+            full_match = re.fullmatch(r"\{\{(\w+)\}\}", data)
+            if full_match:
+                var_name = full_match.group(1)
                 if var_name in self.variables:
-                    base_url = self.variables[var_name]
-                    # 确保基础URL和路径之间只有一个斜杠
-                    return base_url.rstrip('/') + "/" + remaining_path.lstrip('/')
+                    return self.variables[var_name]
             
-            # 如果没有找到完整匹配的变量，则进行非贪婪的部分替换
-            return re.sub(r"\{\{(\w+?)\}\}", lambda m: self.variables.get(m.group(1), m.group(0)), data)
+            # 对于其他情况，进行字符串替换，不再尝试智能添加斜杠
+            return re.sub(r"\{\{(\w+?)\}\}", lambda m: str(self.variables.get(m.group(1), m.group(0))), data)
 
         return data
 
@@ -67,7 +67,11 @@ class TestRunner:
                 for expect_item in expect
             )
         else:
-            return actual == expect
+            # 优先进行严格比较
+            if actual == expect:
+                return True
+            # 弱类型比较补救：都转为字符串再比 (解决 0 匹配 "0" 的问题)
+            return str(actual) == str(expect)
 
     def _execute_assertions(self, response_json: Any, response_status_code: int, assertions: Optional[List[Dict[str, Any]]]) -> Dict[str, Any]:
         if not assertions:
@@ -92,43 +96,97 @@ class TestRunner:
                     actual = response_json
                 elif check and check.startswith("json."):
                     if not isinstance(response_json, (dict, list)):
-                         raise ValueError("Response is not a valid JSON for JSONPath extraction.")
-                    json_path = check[5:]
-                    jsonpath_expr = parse(json_path)
-                    matches = [match.value for match in jsonpath_expr.find(response_json)]
-                    if matches:
-                        actual = matches[0]
+                         # 如果响应不是JSON，但用户尝试提取JSON字段，应该视为提取失败，而不是报错中断
+                         actual = None
+                         message = "Response is not a valid JSON object"
                     else:
-                        raise ValueError(f"JSONPath '{json_path}' not found in response.")
+                        json_path = check[5:]
+                        jsonpath_expr = parse(json_path)
+                        matches = [match.value for match in jsonpath_expr.find(response_json)]
+                        if matches:
+                            actual = matches[0]
+                        else:
+                            # 路径不存在时，actual保持None
+                            message = f"JSONPath '{json_path}' not found in response."
                 else:
                     raise ValueError(f"Invalid 'check' value: {check}")
 
+                # 辅助函数：安全转换为字符串
+                def safe_str(val):
+                    if isinstance(val, (dict, list)):
+                        try:
+                            return json.dumps(val, ensure_ascii=False)
+                        except:
+                            return str(val)
+                    return str(val)
+
+                # 执行比较逻辑
                 if comparator == "contains":
-                    if self._smart_contains(actual, expect):
+                    if actual is not None and self._smart_contains(actual, expect):
                         result = "success"
                     else:
                         message = f"Actual value does not contain expected value."
+                elif comparator in ["equals", "==", "="]:
+                    # 增强的弱类型比较逻辑
+                    # 1. 严格相等
+                    if actual == expect:
+                        result = "success"
+                    # 2. 转换为字符串比较 (处理 0 == "0")
+                    elif str(actual) == str(expect):
+                        result = "success"
+                    else:
+                        # 3. 尝试转换为浮点数比较 (处理 1 == 1.0)
+                        try:
+                            if float(actual) == float(expect):
+                                result = "success"
+                        except (ValueError, TypeError):
+                            pass
+
+                    if result != "success":
+                        message = f"Actual '{actual}' does not equal Expected '{expect}'"
+
                 elif comparator == "json_equals":
                     if actual == expect:
                         result = "success"
                     else:
                         message = f"Actual JSON does not strictly equal expected JSON."
+                elif comparator in ["!=", "not_equals"]:
+                    if str(actual) != str(expect):
+                        result = "success"
+                    else:
+                        message = f"Actual '{actual}' equals Expected '{expect}' (should not)"
+                # 可以根据需要添加更多比较器，如 gt, lt 等
                 else:
-                    message = f"Unknown comparator: {comparator}"
+                    message = f"Unknown or unsupported comparator: {comparator}"
                 
+                # 如果上面没有设置成功，且没有特定错误消息，生成默认错误消息
                 if result == "fail" and not message:
-                    message = f"Assertion failed: Actual value '{actual}' did not satisfy condition '{comparator}' with expected value '{expect}'"
+                    message = f"Assertion failed: Actual '{actual}' vs Expected '{expect}' ({comparator})"
+
+                # 打印断言详情用于调试
+                print(f"    [Assert] Check: {check}, Comparator: {comparator}")
+                print(f"      Expect: {expect} (Type: {type(expect).__name__})")
+                print(f"      Actual: {actual} (Type: {type(actual).__name__})")
+                print(f"      Result: {result.upper()}")
+
+                # 记录结果，确保 expect 和 actual 都是字符串格式
+                assertion_results.append({
+                    "check": check, "comparator": comparator, 
+                    "expect": safe_str(expect),
+                    "actual": safe_str(actual),
+                    "result": result, "message": message
+                })
 
             except Exception as e:
                 message = f"Assertion execution error: {e}"
+                assertion_results.append({
+                    "check": check, "comparator": comparator, "expect": str(expect),
+                    "actual": str(actual) if 'actual' in locals() else "None",
+                    "result": "fail", "message": message
+                })
 
             if result == "fail":
                 all_passed = False
-
-            assertion_results.append({
-                "check": check, "comparator": comparator, "expect": expect,
-                "actual": actual, "result": result, "message": message
-            })
         
         final_result = "success" if all_passed else "fail"
         print(f"  - 断言结果: {final_result.upper()}")
@@ -137,7 +195,25 @@ class TestRunner:
     def run_test_case(self, test_case: test_case_schema.TestCase) -> Dict[str, Any]:
         start_time = datetime.now()
         url = self._replace_variables(test_case.url)
-        headers = self._replace_variables(test_case.headers)
+        
+        # 1. 定义默认 Headers (模拟浏览器行为)
+        default_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Connection": "keep-alive",
+            "Accept-Encoding": "gzip, deflate",
+            "Accept-Language": "zh-CN,zh;q=0.9"
+        }
+        
+        # 2. 处理用户自定义 Headers
+        custom_headers = self._replace_variables(test_case.headers) or {}
+        
+        # 3. 合并 Headers (用户自定义覆盖默认)
+        headers = {**default_headers, **custom_headers}
+        
+        # DEBUG: 打印最终合并后的 Headers，用于排查 Authorization 丢失等问题
+        print(f"  -> Request Headers: {json.dumps(headers, indent=2, ensure_ascii=False)}")
+
         body = self._replace_variables(test_case.body)
 
         try:
@@ -156,7 +232,8 @@ class TestRunner:
                 else:
                     request_kwargs["data"] = body
         
-            response = httpx.request(**request_kwargs)
+            # 使用 self.client.request 替代 httpx.request 以自动处理 Cookies
+            response = self.client.request(**request_kwargs)
             duration = (datetime.now() - start_time).total_seconds()
             
             response.raise_for_status()
@@ -324,6 +401,17 @@ class TestRunner:
 
     def _record_result(self, report_id: int, result: Dict[str, Any]):
         try:
+            # 确保 response_body 是字符串
+            resp_body = result.get("response_body")
+            if not isinstance(resp_body, str):
+                if resp_body is None:
+                    resp_body = ""
+                else:
+                    try:
+                        resp_body = json.dumps(resp_body, ensure_ascii=False)
+                    except:
+                        resp_body = str(resp_body)
+
             record_create = report_schema.TestRecordCreate(
                 report_id=report_id,
                 test_case_id=result.get("id"),
@@ -337,7 +425,7 @@ class TestRunner:
                 request_headers=result.get("request_headers"),
                 request_body=result.get("request_body"),
                 response_headers=result.get("response_headers"),
-                response_body=result.get("response_body"),
+                response_body=resp_body,
                 error_message=result.get("error_message"),
                 assertion_results=result.get("assertions", {}).get("details")
             )

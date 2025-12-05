@@ -3,7 +3,7 @@
     <div class="header">
       <el-page-header @back="goBack" title="返回列表">
         <template #content>
-          <span class="text-large font-600 mr-3"> 测试报告详情 #{{ reportId }} </span>
+          <span class="detail-title"> 测试报告详情 #{{ reportId }} </span>
         </template>
       </el-page-header>
     </div>
@@ -60,8 +60,16 @@
                         <el-tab-pane label="断言结果">
                             <el-table :data="props.row.assertion_results" border size="small">
                                 <el-table-column prop="check" label="检查点" width="120" />
-                                <el-table-column prop="expect" label="预期值" />
-                                <el-table-column prop="actual" label="实际值" />
+                                <el-table-column prop="expect" label="预期值">
+                                    <template #default="scope">
+                                        <pre style="margin:0; font-family:inherit; white-space: pre-wrap;">{{ scope.row.expect }}</pre>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="actual" label="实际值">
+                                    <template #default="scope">
+                                        <pre style="margin:0; font-family:inherit; white-space: pre-wrap;">{{ scope.row.actual }}</pre>
+                                    </template>
+                                </el-table-column>
                                 <el-table-column prop="result" label="状态" width="80">
                                     <template #default="scope">
                                         <el-tag :type="scope.row.result === 'success' ? 'success' : 'danger'">
@@ -163,6 +171,11 @@ onMounted(() => {
 <style scoped>
 .test-report-detail {
   padding: 20px;
+}
+
+.detail-title {
+  font-size: 18px;
+  font-weight: 600;
 }
 
 .header {
