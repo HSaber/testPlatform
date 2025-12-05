@@ -12,6 +12,8 @@ from typing import List
 from pydantic import BaseModel
 from schemas import test_suite as test_suite_schema
 from crud import crud_test_suite
+from crud import crud_test_report
+from schemas import test_report as test_report_schema
 
 test_case_model.Base.metadata.create_all(bind=engine)
 test_module_model.Base.metadata.create_all(bind=engine)
@@ -190,7 +192,7 @@ def delete_test_suite(test_suite_id: int, db: Session = Depends(get_db)):
 @app.post("/suites/run/{test_suite_id}")
 def run_test_suite_endpoint(test_suite_id: int, db: Session = Depends(get_db)):
     runner = TestRunner(db=db)
-    results = runner.run_full_suite(suite_id=test_suite_id)
+    results, report_id = runner.run_full_suite(suite_id=test_suite_id)
     
     # 检查是否因为找不到套件而返回错误
     if len(results) == 1 and results[0].get("name") == "Unknown Suite":
@@ -199,5 +201,24 @@ def run_test_suite_endpoint(test_suite_id: int, db: Session = Depends(get_db)):
     return {
         "message": "Test suite execution completed.",
         "results": results,
-        "final_variables": runner.variables
+        "final_variables": runner.variables,
+        "report_id": report_id
     }
+
+@app.get("/reports/list", response_model=List[test_report_schema.TestReport])
+def read_test_reports(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """
+    获取测试报告列表
+    """
+    test_reports = crud_test_report.get_test_reports(db, skip=skip, limit=limit)
+    return test_reports
+
+@app.get("/reports/{report_id}", response_model=test_report_schema.TestReport)
+def read_test_report(report_id: int, db: Session = Depends(get_db)):
+    """
+    获取特定测试报告的详细信息
+    """
+    db_report = crud_test_report.get_test_report(db, test_report_id=report_id)
+    if db_report is None:
+        raise HTTPException(status_code=404, detail="Test report not found")
+    return db_report

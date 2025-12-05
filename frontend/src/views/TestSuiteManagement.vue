@@ -190,6 +190,9 @@
       </div>
 
       <template #footer>
+        <el-button type="primary" v-if="executionResult.report_id" @click="viewReport(executionResult.report_id)">
+            查看报告
+        </el-button>
         <el-button @click="resultDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
@@ -198,6 +201,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus';
 import { ArrowDown } from '@element-plus/icons-vue';
 import {
@@ -211,6 +215,7 @@ import {
   apiExecuteTestSuite
 } from '../api';
 
+const router = useRouter();
 const suiteTree = ref([]);
 const moduleTree = ref([]);
 const allTestCases = ref([]);
@@ -490,25 +495,18 @@ const handleRunSuite = async () => {
     
     try {
         const res = await apiExecuteTestSuite(currentSuite.value.id);
-        // 假设后端返回结构: { success: true, results: [...], final_variables: {}, ... }
-        // 注意：后端返回的可能是 response.data，axios 会再包一层 data，所以这里视 axios 拦截器配置而定
-        // 通常 res.data 是后端返回的 JSON
         const data = res.data;
         
         executionResult.value = {
-            success: data.success,
+            success: true, // 只要接口调用成功且没有逻辑错误，通常视为执行流程完成
             details: data.results,
             final_variables: data.final_variables,
-            error: data.error
-            // 如果后端没有返回 duration，前端可以自己计算，或者后端加上
+            error: null,
+            report_id: data.report_id
         };
         
         resultDialogVisible.value = true;
-        if (data.success) {
-             ElMessage.success('执行完成');
-        } else {
-             ElMessage.warning('执行完成，但存在失败项');
-        }
+        ElMessage.success('执行完成');
     } catch (error) {
         console.error(error);
         ElMessage.error('执行请求失败');
@@ -520,6 +518,11 @@ const handleRunSuite = async () => {
     } finally {
         loading.close();
     }
+};
+
+const viewReport = (reportId) => {
+    resultDialogVisible.value = false;
+    router.push(`/reports/${reportId}`);
 };
 
 onMounted(() => {

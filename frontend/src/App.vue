@@ -1,6 +1,6 @@
 <script setup>
 import { RouterView, useRoute } from 'vue-router'
-import { Folder, Collection } from '@element-plus/icons-vue'
+import { Folder, Collection, Document } from '@element-plus/icons-vue'
 </script>
 
 <template>
@@ -17,6 +17,10 @@ import { Folder, Collection } from '@element-plus/icons-vue'
           <el-menu-item index="/suites">
             <el-icon><Collection /></el-icon>
             <span>测试套件</span>
+          </el-menu-item>
+          <el-menu-item index="/reports">
+            <el-icon><Document /></el-icon>
+            <span>测试报告</span>
           </el-menu-item>
         </el-menu>
       </div>

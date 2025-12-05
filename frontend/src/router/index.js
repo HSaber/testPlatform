@@ -4,6 +4,8 @@ import TestCaseForm from '../views/TestCaseForm.vue'
 import ModuleManagement from '../views/ModuleManagement.vue'
 // 1. 导入组件
 import TestSuiteManagement from '../views/TestSuiteManagement.vue'
+import TestReportList from '../views/TestReportList.vue'
+import TestReportDetail from '../views/TestReportDetail.vue'
 
 const routes = [
   {
@@ -21,6 +23,16 @@ const routes = [
     path: '/suites',
     name: 'TestSuiteManagement',
     component: TestSuiteManagement
+  },
+  {
+    path: '/reports',
+    name: 'TestReportList',
+    component: TestReportList
+  },
+  {
+    path: '/reports/:id',
+    name: 'TestReportDetail',
+    component: TestReportDetail
   },
   {
     path: '/create',
