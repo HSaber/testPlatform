@@ -104,4 +104,9 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 20px;
 }
+
+.header h2 {
+  font-size: 20px;
+  margin: 0;
+}
 </style>

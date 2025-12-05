@@ -549,6 +549,12 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 10px;
 }
+
+.tree-header h3 {
+  font-size: 18px;
+  margin: 0;
+}
+
 .custom-tree-node {
   flex: 1;
   display: flex;

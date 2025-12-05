@@ -250,6 +250,11 @@ const handleReorder = async () => {
   margin-bottom: 20px;
 }
 
+.toolbar h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
 /* 添加一个拖拽时的占位符样式 */
 .sortable-ghost {
   opacity: 0.8;
