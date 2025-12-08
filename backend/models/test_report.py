@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Float
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy import JSON  # Fix: Use generic JSON for MySQL compatibility
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from core.database import Base

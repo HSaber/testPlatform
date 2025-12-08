@@ -126,8 +126,32 @@
         </div>
       </el-card>
 
+      <el-card class="box-card">
+        <template #header>
+          <div class="card-header">
+            <span>脚本 (Scripts)</span>
+          </div>
+        </template>
+        <el-form-item label="前置脚本">
+          <el-input
+            v-model="form.setup_script"
+            type="textarea"
+            :rows="5"
+            placeholder="请输入Python代码，在请求发送前执行。可操作 variables 字典。"
+          ></el-input>
+        </el-form-item>
+        <el-form-item label="后置脚本">
+          <el-input
+            v-model="form.teardown_script"
+            type="textarea"
+            :rows="5"
+            placeholder="请输入Python代码，在请求发送后执行。可操作 variables 字典。"
+          ></el-input>
+        </el-form-item>
+      </el-card>
+
       <div class="form-buttons">
-        <el-button type="primary" @click="submitForm">{{ isEditMode ? '保存修改' : '立即创建' }}</el-button>
+        <el-button type="primary" @click="submitForm" :loading="isSaving">{{ isEditMode ? '保存修改' : '立即创建' }}</el-button>
         <el-button @click="goBack">取消</el-button>
       </div>
     </el-form>
@@ -135,21 +159,29 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { createTestCase, apiGetTestCaseDetail, apiUpdateTestCase, apiGetTestModules } from '@/api';
+import { ref, onMounted, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { apiCreateTestCase, apiUpdateTestCase, apiGetTestCaseDetail, apiGetTestModules, apiDebugTestCase } from '../api';
 
-const router = useRouter();
 const route = useRoute();
+const router = useRouter();
 const testCaseForm = ref(null);
 const bodyContentType = ref('application/json');
 const moduleOptions = ref([]); // 存储模块树形数据
 
+// Debug related refs
+const isDebugVisible = ref(false);
+const debugLoading = ref(false);
+const debugResult = ref(null);
+const isSaving = ref(false);
+
 const isEditMode = computed(() => !!route.params.id);
+const modules = ref([]);
 
 const form = ref({
   name: '',
+  module_id: '',
   description: '',
   module_id: null, // 修改为 module_id，初始为 null
   priority: 0,
@@ -160,6 +192,8 @@ const form = ref({
   body_form_data: [],
   extract_rules: [],
   assertions: [],
+  setup_script: '',
+  teardown_script: '',
 });
 
 const goBack = () => {
@@ -254,72 +288,96 @@ const removeAssertion = (index) => {
   form.value.assertions.splice(index, 1);
 };
 
+const getPayload = () => {
+    // Trim the URL value before processing
+    const url = form.value.url.trim();
+
+    // 预处理数据
+    const headersObject = form.value.headers.reduce((acc, cur) => {
+        if (cur.key) acc[cur.key] = cur.value;
+        return acc;
+    }, {});
+
+    // 处理提取规则
+    const extractRulesObject = form.value.extract_rules.reduce((acc, cur) => {
+        if (cur.name && cur.expression) acc[cur.name] = cur.expression;
+        return acc;
+    }, {});
+
+    let requestBody = null;
+    if (bodyContentType.value === 'application/json') {
+        requestBody = form.value.body_json ? JSON.parse(form.value.body_json) : null;
+    } else {
+        requestBody = form.value.body_form_data.reduce((acc, cur) => {
+            if (cur.key) acc[cur.key] = cur.value;
+            return acc;
+        }, {});
+    }
+
+    // 转换断言期望值为正确类型
+    const processedAssertions = form.value.assertions.map(a => {
+        const newA = { ...a };
+        try {
+            // 尝试将期望值解析为JSON对象/数组或数字
+            newA.expect = JSON.parse(newA.expect);
+        } catch (e) {
+            // 如果解析失败，则保持为字符串
+        }
+        return newA;
+    });
+
+    const payload = {
+        name: form.value.name,
+        description: form.value.description,
+        module_id: form.value.module_id,
+        priority: form.value.priority,
+        method: form.value.method,
+        url: url,
+        headers: headersObject,
+        body: requestBody,
+        extract_rules: extractRulesObject,
+        assertions: processedAssertions,
+        setup_script: form.value.setup_script,
+        teardown_script: form.value.teardown_script,
+    };
+    return payload;
+};
+
+const debugCase = async () => {
+    try {
+        debugLoading.value = true;
+        const payload = getPayload();
+        const response = await apiDebugTestCase(payload);
+        debugResult.value = response.data;
+        isDebugVisible.value = true;
+        ElMessage.success('调试执行完成');
+    } catch (error) {
+        console.error('Debug failed:', error);
+        ElMessage.error('调试请求失败: ' + (error.response?.data?.detail || error.message));
+    } finally {
+        debugLoading.value = false;
+    }
+};
+
 const submitForm = async () => {
-  // Trim the URL value before processing
-  form.value.url = form.value.url.trim();
-
-  // 预处理数据
-  const headersObject = form.value.headers.reduce((acc, cur) => {
-    if (cur.key) acc[cur.key] = cur.value;
-    return acc;
-  }, {});
-
-  // 处理提取规则
-  const extractRulesObject = form.value.extract_rules.reduce((acc, cur) => {
-    if (cur.name && cur.expression) acc[cur.name] = cur.expression;
-    return acc;
-  }, {});
-
-  let requestBody = null;
-  if (bodyContentType.value === 'application/json') {
-      requestBody = form.value.body_json ? JSON.parse(form.value.body_json) : null;
-  } else {
-      requestBody = form.value.body_form_data.reduce((acc, cur) => {
-          if (cur.key) acc[cur.key] = cur.value;
-          return acc;
-      }, {});
-  }
-  
-  // 转换断言期望值为正确类型
-  const processedAssertions = form.value.assertions.map(a => {
-      try {
-        // 尝试将期望值解析为JSON对象/数组或数字
-        a.expect = JSON.parse(a.expect);
-      } catch (e) {
-        // 如果解析失败，则保持为字符串
-      }
-      return a;
-  });
-
-  const payload = {
-    name: form.value.name,
-    description: form.value.description,
-    module_id: form.value.module_id, // 使用 module_id
-    priority: form.value.priority,
-    method: form.value.method,
-    url: form.value.url,
-    headers: headersObject,
-    body: requestBody,
-    extract_rules: extractRulesObject,
-    assertions: processedAssertions,
-  };
-
-  // Remove helper properties that are not part of the API schema
-  delete payload.body_json;
-  delete payload.body_form_data;
-
+  if (isSaving.value) return;
+  isSaving.value = true;
   try {
+    const payload = getPayload();
+    
     if (isEditMode.value) {
       await apiUpdateTestCase(route.params.id, payload);
       ElMessage.success('更新成功');
     } else {
-      await createTestCase(payload);
+      await apiCreateTestCase(payload);
       ElMessage.success('创建成功');
     }
     router.push('/');
   } catch (error) {
     console.error(error);
     ElMessage.error(isEditMode.value ? '更新失败' : '创建失败');
+  } finally {
+    isSaving.value = false;
   }
 };
 
@@ -380,7 +438,9 @@ const loadTestCaseData = async (id) => {
       body_form_data: bodyFormDataArray, // 赋值 Form Data 数组
       extract_rules: extractRulesArray,
       assertions: assertionsArray,
-      module_id: data.module_id // 确保加载 module_id
+      module_id: data.module_id, // 确保加载 module_id
+      setup_script: data.setup_script || '',
+      teardown_script: data.teardown_script || '',
     };
 
     // 设置 bodyContentType
@@ -440,5 +500,3 @@ onMounted(() => {
   justify-content: center;
 }
 </style>
-
-<!-- 请在此处删除所有剩余的代码，包括多余的 <template> 标签 -->

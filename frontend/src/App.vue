@@ -1,6 +1,16 @@
 <script setup>
+import { computed } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { Folder, Collection, Document } from '@element-plus/icons-vue'
+
+const route = useRoute()
+
+const activeMenu = computed(() => {
+  if (route.path.startsWith('/reports')) {
+    return '/reports'
+  }
+  return route.path
+})
 </script>
 
 <template>
@@ -8,7 +18,7 @@ import { Folder, Collection, Document } from '@element-plus/icons-vue'
     <el-header>
       <div class="header-content">
         <h2 style="margin: 0;">API Test Platform</h2>
-        <el-menu mode="horizontal" :router="true" :default-active="$route.path" style="flex-grow: 1; justify-content: flex-end;">
+        <el-menu mode="horizontal" :router="true" :default-active="activeMenu" style="flex-grow: 1; justify-content: flex-end;">
           <el-menu-item index="/">用例管理</el-menu-item>
           <el-menu-item index="/modules">
             <el-icon><Folder /></el-icon>

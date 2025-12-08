@@ -84,12 +84,14 @@ def delete_test_case(test_case_id: int, db: Session = Depends(get_db)):
     return db_test_case
 
 @app.post("/testcases/batch_delete")
-def batch_delete_test_cases(batch_delete: test_case_schema.TestCaseBatchDelete, db: Session = Depends(get_db)):
-    """
-    批量删除测试用例
-    """
-    deleted_count = crud_test_case.delete_test_cases(db=db, test_case_ids=batch_delete.test_case_ids)
-    return {"message": "Test cases deleted successfully", "deleted_count": deleted_count}
+def batch_delete_test_cases(batch: test_case_schema.TestCaseBatchDelete, db: Session = Depends(get_db)):
+    crud_test_case.batch_delete_test_cases(db, batch.test_case_ids)
+
+
+@app.post("/testcases/debug", response_model=test_case_schema.TestCaseDebugResponse)
+def debug_test_case(test_case: test_case_schema.TestCaseDebugRequest, db: Session = Depends(get_db)):
+    runner = TestRunner(db)
+    return runner.debug_test_case(test_case)
 
 
 @app.post("/testcases/copy/{test_case_id}", response_model=test_case_schema.TestCase)
@@ -101,16 +103,21 @@ def copy_test_case(test_case_id: int, db: Session = Depends(get_db)):
 
 @app.post("/testsuites/execute")
 def execute_test_suite(suite: test_case_schema.TestSuiteExecute, db: Session = Depends(get_db)):
-    """
-    API接口：执行一个测试套件
-    """
-    runner = TestRunner(db=db)
-    results = runner.run_test_suite(test_case_ids=suite.test_case_ids)
+    runner = TestRunner(db)
+    # 修复调用，传递 report_id=None 或者让其默认
+    results, report_id = runner.run_full_suite(suite.suite_id)
+    
     return {
         "message": "Test suite execution completed.",
         "results": results,
         "final_variables": runner.variables
     }
+
+# 修改路由：ID 放在最后
+@app.post("/suites/debug/{suite_id}", response_model=test_suite_schema.TestSuiteDebugResponse)
+def debug_test_suite(suite_id: int, body: test_suite_schema.TestSuiteDebugBody, db: Session = Depends(get_db)):
+    runner = TestRunner(db)
+    return runner.debug_test_suite(suite_id, body.include_case_ids)
 
 class TestCaseReorder(BaseModel):
     test_case_ids: List[int]

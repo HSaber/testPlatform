@@ -61,8 +61,14 @@ export const apiCopyTestCase = (testCaseId) => {
   return apiClient.post(`/testcases/copy/${testCaseId}`);
 };
 
+// 调试测试用例
+export const apiDebugTestCase = (data) => {
+  return apiClient.post('/testcases/debug', data);
+};
+
+
 // 创建测试用例
-export const createTestCase = (testCaseData) => {
+export const apiCreateTestCase = (testCaseData) => {
     return apiClient.post('/testcases', testCaseData);
 };
 
@@ -98,6 +104,12 @@ export const apiDeleteTestSuite = (testSuiteId) => {
 // 执行测试套件
 export const apiExecuteTestSuite = (testSuiteId) => {
   return apiClient.post(`/suites/run/${testSuiteId}`);
+};
+
+// 调试测试套件
+export const apiDebugTestSuite = (testSuiteId, data) => {
+  // 路由变更为 /suites/debug/{id}，ID 在最后
+  return apiClient.post(`/suites/debug/${testSuiteId}`, data);
 };
 
 // -----------------------------------------------------------------------------

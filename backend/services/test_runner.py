@@ -3,20 +3,26 @@ import httpx
 import json
 import time
 import re
+import io
+import contextlib
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from jsonpath_ng import parse
 
 from sqlalchemy.orm import Session
 from crud import crud_test_case, crud_test_suite, crud_test_report
 from schemas import test_case as test_case_schema, test_report as report_schema
+from models import test_case as test_case_models
+from core.config import API_BASE_URL
+import traceback # 新增导入
 
 class TestRunner:
     def __init__(self, db: Session):
         self.db = db
         self.variables: Dict[str, Any] = {}
         # 初始化一个 Client 实例用于保持会话（Cookies）
-        self.client = httpx.Client(verify=False)
+        # FIX: 设置 base_url 以支持相对路径 URL
+        self.client = httpx.Client(verify=False, base_url=API_BASE_URL)
 
     def _replace_variables(self, data: Any) -> Any:
         if isinstance(data, dict):
@@ -192,76 +198,148 @@ class TestRunner:
         print(f"  - 断言结果: {final_result.upper()}")
         return {"result": final_result, "details": assertion_results}
 
-    def run_test_case(self, test_case: test_case_schema.TestCase) -> Dict[str, Any]:
-        start_time = datetime.now()
-        url = self._replace_variables(test_case.url)
-        
-        # 1. 定义默认 Headers (模拟浏览器行为)
-        default_headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Connection": "keep-alive",
-            "Accept-Encoding": "gzip, deflate",
-            "Accept-Language": "zh-CN,zh;q=0.9"
-        }
-        
-        # 2. 处理用户自定义 Headers
-        custom_headers = self._replace_variables(test_case.headers) or {}
-        
-        # 3. 合并 Headers (用户自定义覆盖默认)
-        headers = {**default_headers, **custom_headers}
-        
-        # DEBUG: 打印最终合并后的 Headers，用于排查 Authorization 丢失等问题
-        print(f"  -> Request Headers: {json.dumps(headers, indent=2, ensure_ascii=False)}")
-
-        body = self._replace_variables(test_case.body)
+    def _execute_script(self, script: str, context: Dict[str, Any]):
+        """执行 Python 脚本"""
+        if not script or not script.strip():
+            return
 
         try:
-            request_kwargs = {
-                "method": test_case.method,
-                "url": url,
-                "headers": headers,
-                "timeout": 10
+            print(f"[Script] Executing script...\n{script[:100]}...")
+            # 定义脚本可用的全局变量
+            safe_globals = {
+                "__builtins__": __builtins__,
+                "variables": self.variables,  # 允许读写变量
+                "print": print,
+                "json": __import__("json"),
+                "random": __import__("random"),
+                "time": __import__("time"),
+                "datetime": __import__("datetime"),
             }
-        
-            if body:
-                # 检查 'Content-Type' header 来决定请求体格式
-                content_type = headers.get("Content-Type", "").lower()
-                if "application/json" in content_type:
-                    request_kwargs["json"] = body
-                else:
-                    request_kwargs["data"] = body
-        
-            # 使用 self.client.request 替代 httpx.request 以自动处理 Cookies
-            response = self.client.request(**request_kwargs)
-            duration = (datetime.now() - start_time).total_seconds()
+            # 将上下文合并到局部变量
+            local_vars = context.copy()
             
-            response.raise_for_status()
-            response_json = None
-            try: 
-                response_json = response.json()
-            except json.JSONDecodeError: 
-                pass
+            exec(script, safe_globals, local_vars)
+            
+            print("[Script] Execution success.")
+        except Exception as e:
+            print(f"[Script] Execution failed: {e}")
+            traceback.print_exc()
+            raise e
 
-            print(f"✅ 用例 '{test_case.name}' 请求成功")
-            print(f"  - Status Code: {response.status_code}")
-            
-            # --- FIX STARTS HERE ---
-            # 使用 response_json 或 response.text 来打印响应
-            response_to_print = response_json if response_json is not None else response.text
+    def run_test_case(self, test_case: test_case_schema.TestCase) -> Dict[str, Any]:
+        start_time = datetime.now()
+
+        # 1. 执行前置脚本
+        if hasattr(test_case, 'setup_script') and test_case.setup_script:
             try:
-                # 尝试格式化打印JSON
-                print(f"  - Response: {json.dumps(response_to_print, indent=2, ensure_ascii=False)}")
-            except TypeError:
-                # 如果不是JSON，直接打印文本
-                print(f"  - Response: {response_to_print}")
-            # --- FIX ENDS HERE ---
+                context = {
+                    "url": test_case.url,
+                    "method": test_case.method,
+                    "headers": test_case.headers,
+                    "body": test_case.body
+                }
+                self._execute_script(test_case.setup_script, context)
+            except Exception as e:
+                return {
+                    "id": test_case.id,  # Ensure ID is included
+                    "name": test_case.name,
+                    "status": "error",
+                    "duration": (datetime.now() - start_time).total_seconds(),
+                    "error_message": f"Setup script failed: {str(e)}",
+                    "response": None,
+                    "assertions": {"result": "error", "details": []}  # Fix: Changed [] to dict
+                }
 
+        url = self._replace_variables(test_case.url)
+
+        # 1.1 处理 URL
+        if not url.startswith("http"):
+            url = f"{API_BASE_URL.rstrip('/')}/{url.lstrip('/')}"
+
+        # 1.2 处理 Headers
+        headers = {"Content-Type": "application/json"}
+        if test_case.headers:
+            # 替换 headers 中的变量
+            processed_headers = self._replace_variables(test_case.headers)
+            if isinstance(processed_headers, dict):
+                headers.update(processed_headers)
+
+        # 1.3 处理 Body
+        body = None
+        if test_case.body:
+            # 替换 body 中的变量
+            body = self._replace_variables(test_case.body)
+        
+        # 打印请求详情
+        print(f"\n--- Request Info ---")
+        print(f"Method: {test_case.method}")
+        print(f"URL: {url}")
+        print(f"Headers: {json.dumps(headers, ensure_ascii=False)}")
+        print(f"Body: {json.dumps(body, ensure_ascii=False) if body else 'None'}")
+        print(f"--------------------\n")
+
+        try:
+            # 发送请求
+            # FIX: 根据 Content-Type 决定发送方式
+            content_type = headers.get("Content-Type", "").lower()
+            if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+                 response = self.client.request(test_case.method, url, headers=headers, data=body)
+            else:
+                 # 默认使用 JSON，除非明确指定了其他不支持 JSON 的类型（这里简化处理，默认 JSON）
+                 response = self.client.request(test_case.method, url, headers=headers, json=body)
+            
+            # 处理响应编码
+            response.encoding = "utf-8"
+            
+            # 尝试解析 JSON
+            try:
+                response_json = response.json()
+            except json.JSONDecodeError:
+                response_json = response.text
+
+            # 打印响应详情
+            print(f"\n--- Response Info ---")
+            print(f"Status Code: {response.status_code}")
+            print(f"Response: {response.text[:1000] + '...' if len(response.text) > 1000 else response.text}")
+            print(f"---------------------\n")
+
+            # 2. 执行后置脚本 (在提取变量和断言之前，或者之后，视需求)
+            # 通常建议在断言之前，以便脚本可以辅助断言或提取复杂变量
+            if hasattr(test_case, 'teardown_script') and test_case.teardown_script:
+                context = {
+                    "response": response,
+                    "response_json": response_json,
+                    "status_code": response.status_code
+                }
+                try:
+                    self._execute_script(test_case.teardown_script, context)
+                except Exception as e:
+                     return {
+                        "id": test_case.id,  # Ensure ID is included
+                        "name": test_case.name,
+                        "status": "error",
+                        "duration": (datetime.now() - start_time).total_seconds(),
+                        "error_message": f"Teardown script failed: {str(e)}",
+                        "response": {
+                            "status_code": response.status_code,
+                            "headers": dict(response.headers),
+                            "body": response_json
+                        },
+                        "assertions": {"result": "error", "details": []}  # Fix: Changed [] to dict
+                    }
+
+            # 3. 提取变量
             self._extract_data(response_json, test_case.extract_rules)
 
-            assertions_result = self._execute_assertions(response_json, response.status_code, test_case.assertions)
+            # 4. 断言
+            # Fix: 补充 status_code 参数
+            assertion_result = self._execute_assertions(response_json, response.status_code, test_case.assertions)
 
-            final_status = assertions_result["result"]
+            # Fix: 修正变量名拼写 (assertions_result -> assertion_result)
+            final_status = assertion_result["result"]
+            
+            # Fix: 在返回前计算执行时长
+            duration = (datetime.now() - start_time).total_seconds()
             
             return {
                 "id": test_case.id,
@@ -269,7 +347,7 @@ class TestRunner:
                 "status": final_status, 
                 "status_code": response.status_code,
                 "response": response_json or response.text,
-                "assertions": assertions_result,
+                "assertions": assertion_result,
                 "url": url,
                 "method": test_case.method,
                 "start_time": start_time,
@@ -294,7 +372,8 @@ class TestRunner:
                 "duration": duration,
                 "request_headers": headers,
                 "request_body": body,
-                "error_message": str(e)
+                "error_message": str(e),
+                "assertions": {"result": "error", "details": []}  # Fix: Added assertions field
             }
 
     def run_test_suite(self, test_case_ids: List[int]) -> List[Dict[str, Any]]:
@@ -315,78 +394,178 @@ class TestRunner:
         print("▶️ 测试套件执行完毕")
         return results
 
-    def run_full_suite(self, suite_id: int, parent_report_id: Optional[int] = None) -> Tuple[List[Dict[str, Any]], Optional[int]]:
+    def debug_test_case(self, test_case_data: Union[test_case_models.TestCase, test_case_schema.TestCaseDebugRequest]) -> test_case_schema.TestCaseDebugResponse:
+        """
+        调试单个测试用例，不保存结果到数据库，返回执行日志
+        """
+        start_time = time.time()
+        logs_capture = io.StringIO()
+        
+        # 捕获标准输出
+        with contextlib.redirect_stdout(logs_capture):
+            print(f"开始调试测试用例: {test_case_data.name}")
+            
+            # 1. 替换变量
+            url = self._replace_variables(test_case_data.url)
+            # FIX: 使用正确的字段名 headers 和 body
+            headers = self._replace_variables(test_case_data.headers) if test_case_data.headers else {}
+            body = self._replace_variables(test_case_data.body) if test_case_data.body else None
+            
+            # 处理 body 为 JSON 的情况
+            if body and isinstance(body, str):
+                try:
+                    body = json.loads(body)
+                except json.JSONDecodeError:
+                    pass
+
+            # 2. 执行前置脚本
+            if test_case_data.setup_script:
+                print("正在执行前置脚本...")
+                self._execute_script(test_case_data.setup_script)
+
+            # 3. 发送请求
+            method = test_case_data.method.upper()
+            response = None
+            error_message = None
+            response_body = None
+            response_headers = None
+            status_code = None
+            
+            try:
+                # FIX: 根据 Content-Type 决定发送方式
+                content_type = headers.get("Content-Type", "").lower() if headers else ""
+                use_data = "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type
+
+                if method == "GET":
+                    response = self.client.get(url, headers=headers, params=body)
+                elif method == "POST":
+                    if use_data:
+                        response = self.client.post(url, headers=headers, data=body)
+                    else:
+                        response = self.client.post(url, headers=headers, json=body)
+                elif method == "PUT":
+                    if use_data:
+                        response = self.client.put(url, headers=headers, data=body)
+                    else:
+                        response = self.client.put(url, headers=headers, json=body)
+                elif method == "DELETE":
+                    response = self.client.delete(url, headers=headers, params=body)
+                else:
+                    raise ValueError(f"不支持的请求方法: {method}")
+                
+                status_code = response.status_code
+                response_headers = dict(response.headers)
+                
+                try:
+                    response_body = response.json()
+                except:
+                    response_body = response.text
+                
+                print(f"请求成功: {method} {url} - Status: {status_code}")
+                
+            except Exception as e:
+                error_message = str(e)
+                print(f"请求失败: {e}")
+                traceback.print_exc()
+
+            # 4. 执行后置脚本
+            if test_case_data.teardown_script:
+                print("正在执行后置脚本...")
+                try:
+                    # 如果有响应，将其注入到脚本上下文中
+                    context = {}
+                    if response:
+                         context = {"response": response}
+                         
+                    self._execute_script(test_case_data.teardown_script, context)
+                except Exception as e:
+                     print(f"后置脚本执行失败: {e}")
+                     traceback.print_exc()
+
+            # 5. 提取变量
+            if response_body and isinstance(response_body, dict):
+                # FIX: 使用 extract_rules 而不是 variables
+                self._extract_data(response_body, test_case_data.extract_rules)
+
+            # 6. 执行断言
+            assertion_result = {}
+            if response and test_case_data.assertions:
+                # 确保 response_body 是字典，如果不是（例如是文本），则无法进行 JSONPath 断言
+                resp_json = response_body if isinstance(response_body, dict) else {}
+                assertion_result = self._execute_assertions(resp_json, response.status_code, test_case_data.assertions)
+
+        duration = time.time() - start_time
+        logs = logs_capture.getvalue()
+        logs_capture.close()
+        # 在 return 之前，确保 url 和 method 是可用的
+        # 注意：debug_test_case 方法内部拼接了 url，所以这里直接使用拼接后的 url 变量
+        # method 也是局部变量
+
+        return test_case_schema.TestCaseDebugResponse(
+            status="SUCCESS" if not error_message else "FAILED",
+            status_code=status_code,
+            response=response_body,
+            assertions=assertion_result,
+            logs=logs,
+            duration=duration,
+            request_headers=headers,
+            request_body=body,
+            response_headers=response_headers,
+            # 新增字段
+            url=url,
+            method=method
+        )
+
+    def run_full_suite(self, suite_id: int, parent_report_id: int = None):
         """
         执行完整的测试套件（包含用例、模块、子套件）
         返回: (results, report_id)
         """
         suite = crud_test_suite.get_test_suite(self.db, test_suite_id=suite_id)
         if not suite:
-            return [{
-                "id": suite_id,
-                "name": "Unknown Suite",
-                "status": "error",
-                "response": f"Test suite with id {suite_id} not found."
-            }], None
+            raise ValueError(f"Test suite {suite_id} not found")
 
-        # 创建或使用现有报告
-        report_id = parent_report_id
-        is_root_execution = False
-        if report_id is None:
-            is_root_execution = True
-            report_create = report_schema.TestReportCreate(
+        # 创建或使用父报告
+        if parent_report_id:
+            report_id = parent_report_id
+        else:
+            # 顶层套件执行，创建新报告
+            # FIX: 添加 suite_name
+            report = crud_test_report.create_test_report(self.db, report_schema.TestReportCreate(
                 suite_id=suite.id,
                 suite_name=suite.name,
-                start_time=datetime.now(),
                 status="running"
-            )
-            report = crud_test_report.create_test_report(self.db, report_create)
+            ))
             report_id = report.id
 
         results = []
-        print(f"🚀 开始执行套件: {suite.name}")
-
-        # 遍历 items，它们已经按照 sort_order 排序（由 SQLAlchemy relationship 保证）
+        
+        # 遍历 items
         if suite.items:
             for item in suite.items:
                 try:
                     if item.item_type == "test_case":
                         if item.test_case:
                             result = self.run_test_case(item.test_case)
+                            # result['id'] = item.test_case.id # run_test_case 已经包含 id
                             self._record_result(report_id, result)
                             results.append(result)
-                        else:
-                            results.append({
-                                "id": item.test_case_id,
-                                "name": "Missing Case",
-                                "status": "error",
-                                "response": f"Test case ID {item.test_case_id} not found"
-                            })
-                    
+
                     elif item.item_type == "test_module":
                         if item.module:
-                            print(f"  📂 执行模块: {item.module.name}")
-                            if hasattr(item.module, 'test_cases') and item.module.test_cases:
+                            # 递归执行模块中的用例
+                            if item.module.test_cases:
                                 for case in item.module.test_cases:
                                     result = self.run_test_case(case)
                                     self._record_result(report_id, result)
                                     results.append(result)
-                            else:
-                                pass
-                        else:
-                             results.append({
-                                "id": item.module_id,
-                                "name": "Missing Module",
-                                "status": "error",
-                                "response": f"Module ID {item.module_id} not found"
-                            })
 
                     elif item.item_type == "test_suite":
+                        # 递归执行子套件
                         if item.child_suite_id:
-                            # 递归执行子套件
                             sub_results, _ = self.run_full_suite(item.child_suite_id, parent_report_id=report_id)
                             results.extend(sub_results)
-                
+
                 except Exception as e:
                     results.append({
                         "name": f"Error executing item {item.id}",
@@ -394,31 +573,38 @@ class TestRunner:
                         "response": str(e)
                     })
         
-        if is_root_execution:
+        if parent_report_id is None:
             self._finalize_report(report_id, results)
 
         return results, report_id
 
     def _record_result(self, report_id: int, result: Dict[str, Any]):
+        """记录单个测试用例的执行结果"""
         try:
-            # 确保 response_body 是字符串
-            resp_body = result.get("response_body")
-            if not isinstance(resp_body, str):
-                if resp_body is None:
-                    resp_body = ""
-                else:
-                    try:
-                        resp_body = json.dumps(resp_body, ensure_ascii=False)
-                    except:
-                        resp_body = str(resp_body)
+            # 处理断言结果
+            assertion_details = None
+            if result.get("assertions") and isinstance(result["assertions"], dict):
+                assertion_details = result["assertions"].get("details")
 
-            record_create = report_schema.TestRecordCreate(
+            # 处理响应体，确保为字符串
+            resp_body = result.get("response_body")
+            if isinstance(resp_body, (dict, list)):
+                resp_body = json.dumps(resp_body, ensure_ascii=False)
+            elif resp_body is None:
+                # 兼容旧逻辑，如果没有 response_body，尝试使用 response 字段
+                resp = result.get("response")
+                if isinstance(resp, (dict, list)):
+                    resp_body = json.dumps(resp, ensure_ascii=False)
+                else:
+                    resp_body = str(resp) if resp is not None else None
+
+            crud_test_report.create_test_record(self.db, report_schema.TestRecordCreate(
                 report_id=report_id,
                 test_case_id=result.get("id"),
-                case_name=result.get("name"),
-                start_time=result.get("start_time"),
-                duration=result.get("duration"),
-                status=result.get("status"),
+                case_name=result.get("name", "Unknown Case"),
+                status=result.get("status", "error"),
+                duration=result.get("duration", 0.0),
+                # FIX: 映射详细信息
                 url=result.get("url"),
                 method=result.get("method"),
                 status_code=result.get("status_code"),
@@ -427,34 +613,87 @@ class TestRunner:
                 response_headers=result.get("response_headers"),
                 response_body=resp_body,
                 error_message=result.get("error_message"),
-                assertion_results=result.get("assertions", {}).get("details")
-            )
-            crud_test_report.create_test_record(self.db, record_create)
+                assertion_results=assertion_details
+            ))
         except Exception as e:
-            print(f"❌ 记录测试结果失败: {e}")
+            print(f"Failed to record result: {e}")
 
     def _finalize_report(self, report_id: int, results: List[Dict[str, Any]]):
+        """更新测试报告的最终状态"""
         total = len(results)
-        pass_count = sum(1 for r in results if r.get("status") == "success")
-        fail_count = sum(1 for r in results if r.get("status") == "fail")
-        error_count = sum(1 for r in results if r.get("status") == "error")
+        # FIX: 状态判断逻辑统一，假设 run_test_case 返回 'success' 表示通过
+        passed = sum(1 for r in results if r.get("status") == "success")
+        failed = total - passed
         
-        status = "success" if fail_count == 0 and error_count == 0 else "failed"
-        
-        report_update = report_schema.TestReportUpdate(
-            end_time=datetime.now(),
-            duration=0, # Calculation needed if start time persisted or fetched
+        # 计算总耗时
+        total_duration = sum(r.get("duration", 0.0) for r in results)
+
+        final_status = "success" if failed == 0 else "failed"
+
+        crud_test_report.update_test_report(self.db, report_id, report_schema.TestReportUpdate(
+            status=final_status,
             total_cases=total,
-            pass_count=pass_count,
-            fail_count=fail_count,
-            error_count=error_count,
-            status=status
-        )
-        
-        # Calculate duration correctly by fetching report start time or just diffing now
-        # Ideally fetch report to get start_time
-        db_report = crud_test_report.get_test_report(self.db, report_id)
-        if db_report and db_report.start_time:
-            report_update.duration = (datetime.now() - db_report.start_time).total_seconds()
-            
-        crud_test_report.update_test_report(self.db, report_id, report_update)
+            pass_count=passed,   # FIX: 使用正确的字段名 pass_count
+            fail_count=failed,   # FIX: 使用正确的字段名 fail_count
+            duration=total_duration,
+            end_time=datetime.now()
+        ))
+
+    def debug_test_suite(self, suite_id: int, include_case_ids: List[int] = None):
+        """
+        调试执行测试套件，不记录到数据库，支持过滤用例
+        """
+        suite = crud_test_suite.get_test_suite(self.db, test_suite_id=suite_id)
+        if not suite:
+             return {
+                 "suite_id": suite_id,
+                 "suite_name": "Unknown",
+                 "results": [],
+                 "total_duration": 0
+             }
+
+        results = []
+        start_time = time.time()
+
+        if suite.items:
+            for item in suite.items:
+                try:
+                    if item.item_type == "test_case":
+                        if item.test_case:
+                            # 如果指定了 include_case_ids 且当前用例不在其中，则跳过
+                            if include_case_ids is not None and item.test_case.id not in include_case_ids:
+                                continue
+                            
+                            debug_result = self.debug_test_case(item.test_case)
+                            res_dict = debug_result.dict()
+                            res_dict['id'] = item.test_case.id
+                            res_dict['name'] = item.test_case.name
+                            results.append(res_dict)
+                    
+                    elif item.item_type == "test_module":
+                        if item.module and item.module.test_cases:
+                            for case in item.module.test_cases:
+                                if include_case_ids is not None and case.id not in include_case_ids:
+                                    continue
+                                
+                                debug_result = self.debug_test_case(case)
+                                res_dict = debug_result.dict()
+                                res_dict['id'] = case.id
+                                res_dict['name'] = case.name
+                                results.append(res_dict)
+
+                    # 注意：当前简单的调试模式暂不递归处理子套件的筛选，
+                    # 除非前端传递所有层级的用例ID。这里暂只处理当前套件直属的用例和模块内的用例。
+                
+                except Exception as e:
+                    results.append({
+                        "status": "error",
+                        "error_message": str(e)
+                    })
+
+        return {
+            "suite_id": suite.id,
+            "suite_name": suite.name,
+            "results": results,
+            "total_duration": time.time() - start_time
+        }

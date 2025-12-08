@@ -10,9 +10,10 @@
 
     <el-card v-if="report" class="info-card">
       <el-descriptions title="基本信息" :column="4" border>
-        <el-descriptions-item label="测试套件 ID">{{ report.test_suite_id }}</el-descriptions-item>
+        <el-descriptions-item label="套件名称">{{ report.suite_name }}</el-descriptions-item>
+        <el-descriptions-item label="测试套件 ID">{{ report.suite_id }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="getStatusType(report.status)">{{ report.status }}</el-tag>
+          <el-tag :type="getStatusType(report.status)">{{ formatStatus(report.status) }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="开始时间">{{ formatDate(report.start_time) }}</el-descriptions-item>
         <el-descriptions-item label="耗时">{{ report.duration ? report.duration.toFixed(2) + 's' : '-' }}</el-descriptions-item>
@@ -88,6 +89,7 @@
             </template>
         </el-table-column>
         <el-table-column prop="test_case_id" label="用例 ID" width="100" />
+        <el-table-column prop="case_name" label="用例名称" min-width="150" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
              <el-tag :type="getStatusType(scope.row.status)">{{ scope.row.status }}</el-tag>
@@ -118,25 +120,26 @@ const route = useRoute()
 const router = useRouter()
 const reportId = route.params.id
 const report = ref(null)
-
-const fetchReportDetail = async () => {
-  try {
-    const response = await apiGetTestReportDetail(reportId)
-    report.value = response.data
-  } catch (error) {
-    ElMessage.error('获取报告详情失败')
-    console.error(error)
-  }
-}
+const loading = ref(false)
 
 const goBack = () => {
   router.back()
 }
 
-const formatDate = (dateString) => {
-  if (!dateString) return ''
-  return new Date(dateString).toLocaleString()
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleString()
 }
+
+const formatStatus = (status) => {
+    const map = {
+        'success': '成功',
+        'failed': '失败',
+        'error': '错误',
+        'running': '运行中'
+    };
+    return map[status] || status;
+};
 
 const getStatusType = (status) => {
   const map = {
@@ -163,8 +166,21 @@ const formatJson = (data) => {
     }
 }
 
+const loadReport = async () => {
+  try {
+    loading.value = true
+    const res = await apiGetTestReportDetail(reportId)
+    report.value = res.data
+  } catch (error) {
+    console.error('获取报告详情失败', error)
+    ElMessage.error('获取报告详情失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 onMounted(() => {
-  fetchReportDetail()
+  loadReport()
 })
 </script>
 

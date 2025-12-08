@@ -49,3 +49,17 @@ class TestSuite(TestSuiteBase):
 
     class Config:
         orm_mode = True
+
+class TestSuiteDebugRequest(BaseModel):
+    suite_id: int
+    include_case_ids: Optional[List[int]] = None
+
+# 新增：用于 URL 路径末尾包含 suite_id 时的请求体
+class TestSuiteDebugBody(BaseModel):
+    include_case_ids: Optional[List[int]] = None
+
+class TestSuiteDebugResponse(BaseModel):
+    suite_id: int
+    suite_name: str
+    results: List[dict]
+    total_duration: float

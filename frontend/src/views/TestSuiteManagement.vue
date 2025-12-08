@@ -33,6 +33,7 @@
               <div class="card-header">
                 <span>{{ currentSuite.name }}</span>
                 <div>
+                    <el-button type="warning" @click="handleDebugSuite">调试运行</el-button>
                     <el-button type="success" @click="handleRunSuite">执行套件</el-button>
                     <el-button type="primary" @click="handleSaveSuite">保存修改</el-button>
                     <el-button type="danger" @click="handleDeleteSuite(currentSuite)">删除套件</el-button>
@@ -160,42 +161,149 @@
     </el-dialog>
 
     <!-- 执行结果弹窗 -->
-    <el-dialog v-model="resultDialogVisible" title="执行结果" width="60%">
-      <el-descriptions :column="1" border>
-        <el-descriptions-item label="状态">
-          <el-tag :type="executionResult.success ? 'success' : 'danger'">
-            {{ executionResult.success ? '成功' : '失败' }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="总耗时" v-if="executionResult.duration">
-            {{ executionResult.duration.toFixed(2) + 's' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="错误信息" v-if="executionResult.error">
-          {{ executionResult.error }}
-        </el-descriptions-item>
-      </el-descriptions>
-      
-      <div style="margin-top: 20px;" v-if="executionResult.details">
-        <h4>执行详情</h4>
-        <el-scrollbar max-height="400px">
-            <pre style="background: #f5f7fa; padding: 10px; border-radius: 4px; font-family: monospace;">{{ JSON.stringify(executionResult.details, null, 2) }}</pre>
-        </el-scrollbar>
-      </div>
-      
-      <div style="margin-top: 20px;" v-if="executionResult.final_variables">
-        <h4>最终变量</h4>
-        <el-scrollbar max-height="200px">
-            <pre style="background: #f5f7fa; padding: 10px; border-radius: 4px; font-family: monospace;">{{ JSON.stringify(executionResult.final_variables, null, 2) }}</pre>
-        </el-scrollbar>
+    <el-dialog v-model="resultDialogVisible" title="执行结果" width="70%">
+      <div class="result-summary" style="margin-bottom: 20px;">
+        <el-descriptions :column="3" border>
+           <el-descriptions-item label="执行状态">
+              <el-tag :type="executionResult.status === 'success' ? 'success' : 'danger'">
+                 {{ executionResult.status === 'success' ? '成功' : '失败' }}
+              </el-tag>
+           </el-descriptions-item>
+           <el-descriptions-item label="提示信息">{{ executionResult.message }}</el-descriptions-item>
+           <el-descriptions-item label="操作">
+              <el-button type="primary" link v-if="executionResult.report_id" @click="viewReport(executionResult.report_id)">查看完整报告</el-button>
+           </el-descriptions-item>
+        </el-descriptions>
       </div>
 
+      <div v-if="executionResult.details && executionResult.details.length > 0">
+        <h4>执行详情</h4>
+        <el-table :data="executionResult.details" height="400" style="width: 100%" border>
+            <el-table-column prop="id" label="用例ID" width="80" />
+            <el-table-column prop="name" label="用例名称" />
+            <el-table-column prop="status" label="状态" width="100">
+              <template #default="scope">
+                <el-tag :type="scope.row.status === 'success' ? 'success' : 'danger'">
+                  {{ scope.row.status === 'success' ? '通过' : '失败' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="duration" label="耗时(s)" width="100">
+               <template #default="scope">
+                 {{ scope.row.duration ? scope.row.duration.toFixed(2) : '0.00' }}
+               </template>
+            </el-table-column>
+            <el-table-column label="响应/错误信息" show-overflow-tooltip>
+                <template #default="scope">
+                    {{ typeof scope.row.response === 'object' ? JSON.stringify(scope.row.response) : scope.row.response }}
+                </template>
+            </el-table-column>
+        </el-table>
+      </div>
       <template #footer>
-        <el-button type="primary" v-if="executionResult.report_id" @click="viewReport(executionResult.report_id)">
-            查看报告
-        </el-button>
         <el-button @click="resultDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- 调试选择用例弹窗 -->
+    <el-dialog v-model="debugSelectVisible" title="选择调试用例" width="50%">
+      <el-alert
+        title="调试模式下，可以选择部分用例进行运行，结果不会保存到历史报告中。"
+        type="info"
+        show-icon
+        style="margin-bottom: 15px;"
+      />
+       <el-table 
+          :data="suiteTestCases" 
+          @selection-change="handleDebugSelectionChange"
+          height="400"
+        >
+          <el-table-column type="selection" width="55" />
+          <el-table-column prop="test_case_id" label="ID" width="80" />
+          <el-table-column label="名称">
+            <template #default="scope">
+                {{ getTestCaseName(scope.row.test_case_id) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="模块">
+             <template #default="scope">
+                {{ getModuleNameByCaseId(scope.row.test_case_id) }}
+             </template>
+          </el-table-column>
+       </el-table>
+       <template #footer>
+          <el-button @click="debugSelectVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmDebugRun" :loading="debugLoading">开始调试</el-button>
+       </template>
+    </el-dialog>
+
+    <!-- 调试结果弹窗 -->
+    <el-drawer v-model="debugResultVisible" title="调试结果" size="80%">
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="套件名称">{{ debugResult.suite_name }}</el-descriptions-item>
+        <el-descriptions-item label="总耗时">{{ debugResult.total_duration ? debugResult.total_duration.toFixed(2) + 's' : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="成功/总数">
+          <el-tag type="success">{{ debugResult.results?.filter(r => ['pass', 'success', 'SUCCESS'].includes(r.status)).length }}</el-tag> /
+          <el-tag type="info">{{ debugResult.results?.length }}</el-tag>
+        </el-descriptions-item>
+      </el-descriptions>
+
+      <el-table :data="debugResult.results" style="width: 100%; margin-top: 20px;">
+        <el-table-column prop="name" label="用例名称" />
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="scope">
+            <el-tag :type="['pass', 'success', 'SUCCESS'].includes(scope.row.status) ? 'success' : 'danger'">
+              {{ ['pass', 'success', 'SUCCESS'].includes(scope.row.status) ? '成功' : '失败' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="duration" label="耗时(s)" width="100">
+             <template #default="scope">{{ scope.row.duration?.toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column type="expand">
+          <template #default="props">
+             <div style="padding: 10px;">
+                <!-- 兼容后端字段名差异 -->
+                <p><strong>URL:</strong> {{ props.row.url || 'N/A' }}</p>
+                <p><strong>Method:</strong> {{ props.row.method || 'N/A' }}</p>
+                <p><strong>Response Code:</strong> {{ props.row.status_code || props.row.response_status_code }}</p>
+                
+                <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                  <strong style="margin-right: 10px;">Response Body:</strong>
+                  <el-tooltip content="复制Response Body" placement="top">
+                    <el-button 
+                      link 
+                      type="primary" 
+                      :icon="DocumentCopy" 
+                      @click="copyToClipboard(typeof (props.row.response || props.row.response_body) === 'object' ? JSON.stringify(props.row.response || props.row.response_body, null, 2) : (props.row.response || props.row.response_body))"
+                    />
+                  </el-tooltip>
+                </div>
+                <pre style="max-height: 200px; overflow: auto; background: #f4f4f5; padding: 10px;">{{ 
+                  typeof (props.row.response || props.row.response_body) === 'object' 
+                    ? JSON.stringify(props.row.response || props.row.response_body, null, 2) 
+                    : (props.row.response || props.row.response_body) 
+                }}</pre>
+
+                <template v-if="props.row.assertions">
+                   <p><strong>Assertions:</strong></p>
+                   <pre style="max-height: 150px; overflow: auto; background: #eef2f6; padding: 10px;">{{ JSON.stringify(props.row.assertions, null, 2) }}</pre>
+                </template>
+                
+                <template v-if="props.row.logs">
+                   <p><strong>Logs:</strong></p>
+                   <pre style="max-height: 150px; overflow: auto; background: #282c34; color: #abb2bf; padding: 10px;">{{ props.row.logs }}</pre>
+                </template>
+
+                <p v-if="props.row.error"><strong>Error:</strong> {{ props.row.error }}</p>
+             </div>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="debugResultVisible = false">关闭</el-button>
+      </template>
+    </el-drawer>
   </div>
 </template>
 
@@ -203,7 +311,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus';
-import { ArrowDown } from '@element-plus/icons-vue';
+import { ArrowDown, DocumentCopy } from '@element-plus/icons-vue';
 import {
   apiGetTestSuites,
   apiGetTestSuiteDetail,
@@ -212,7 +320,9 @@ import {
   apiDeleteTestSuite,
   apiGetTestModules,
   apiGetTestCases,
-  apiExecuteTestSuite
+  apiExecuteTestSuite,
+  apiGetTestReports,
+  apiDebugTestSuite // new import
 } from '../api';
 
 const router = useRouter();
@@ -235,9 +345,27 @@ const moduleTreeRef = ref(null);
 const resultDialogVisible = ref(false);
 const executionResult = ref({});
 
+// 调试相关状态
+const debugSelectVisible = ref(false);
+const debugResultVisible = ref(false);
+const debugLoading = ref(false);
+const suiteTestCases = ref([]);
+const selectedDebugCases = ref([]);
+const debugResult = ref({});
+
 const defaultProps = {
   children: 'children',
   label: 'name',
+};
+
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    ElMessage.success('复制成功');
+  } catch (err) {
+    ElMessage.error('复制失败');
+    console.error('Failed to copy: ', err);
+  }
 };
 
 const loadData = async () => {
@@ -285,29 +413,27 @@ const loadTestCases = async () => {
 };
 
 const transformToTree = (data) => {
-  // 简单的树转换逻辑，根据 parent_id
-  const idMapping = data.reduce((acc, el, i) => {
-    acc[el.id] = i;
-    return acc;
-  }, {});
+  // 深拷贝数据，避免修改原数据，同时断开引用
+  const list = JSON.parse(JSON.stringify(data));
+  const map = {};
+  
+  // 先建立索引并重置 children，确保干净的开始
+  list.forEach(item => {
+    item.children = [];
+    map[item.id] = item;
+  });
   
   const root = [];
-  data.forEach((el) => {
-    // 确保 children 是数组
-    if (!el.children) el.children = [];
-    
-    if (el.parent_id === null) {
-      root.push(el);
-      return;
-    }
-    const parentEl = data[idMapping[el.parent_id]];
-    if (parentEl) {
-      if (!parentEl.children) parentEl.children = [];
-      parentEl.children.push(el);
+  list.forEach((item) => {
+    if (item.parent_id && map[item.parent_id]) {
+      // 如果有父节点且父节点存在，加入到父节点的 children 中
+      map[item.parent_id].children.push(item);
     } else {
-       root.push(el);
+      // 否则作为根节点
+      root.push(item);
     }
   });
+  
   return root;
 };
 
@@ -410,21 +536,51 @@ const confirmAddCases = () => {
     caseSelectVisible.value = false;
 };
 
-const confirmAddModules = () => {
-    const selectedNodes = moduleTreeRef.value.getCheckedNodes();
-    // 过滤掉父节点，只添加叶子节点或者根据需求添加
-    // 这里简化为添加所有选中的节点
-    const newItems = selectedNodes.map(m => ({
-        item_type: 'test_module',
-        test_case_id: null,
-        module_id: m.id,
-        child_suite_id: null,
-        temp_id: Date.now() + Math.random(),
-        sort_order: 0
-    }));
-    if (!currentSuite.value.items) currentSuite.value.items = [];
-    currentSuite.value.items.push(...newItems);
-    moduleSelectVisible.value = false;
+const getModuleNameByCaseId = (caseId) => {
+    const testCase = allTestCases.value.find(tc => tc.id === caseId);
+    if (!testCase || !testCase.module_id) return '-';
+    return getModuleName(testCase.module_id);
+};
+
+const handleDebugSuite = () => {
+    if (!currentSuite.value || !currentSuite.value.items) return;
+    
+    // 筛选出直接关联的测试用例
+    suiteTestCases.value = currentSuite.value.items.filter(item => item.item_type === 'test_case');
+    
+    if (suiteTestCases.value.length === 0) {
+        ElMessage.warning('当前套件没有直接关联的测试用例，无法进行调试');
+        return;
+    }
+
+    debugSelectVisible.value = true;
+};
+
+const handleDebugSelectionChange = (val) => {
+    selectedDebugCases.value = val;
+};
+
+const confirmDebugRun = async () => {
+    if (selectedDebugCases.value.length === 0) {
+        ElMessage.warning('请至少选择一个用例');
+        return;
+    }
+
+    debugLoading.value = true;
+    try {
+        const caseIds = selectedDebugCases.value.map(item => item.test_case_id);
+        const payload = { include_case_ids: caseIds };
+        
+        const res = await apiDebugTestSuite(currentSuite.value.id, payload);
+        debugResult.value = res.data;
+        debugSelectVisible.value = false;
+        debugResultVisible.value = true;
+    } catch (error) {
+        console.error(error);
+        ElMessage.error('调试运行失败');
+    } finally {
+        debugLoading.value = false;
+    }
 };
 
 const handleRemoveItem = (index) => {
@@ -498,7 +654,8 @@ const handleRunSuite = async () => {
         const data = res.data;
         
         executionResult.value = {
-            success: true, // 只要接口调用成功且没有逻辑错误，通常视为执行流程完成
+            status: 'success',
+            message: '测试套件执行成功',
             details: data.results,
             final_variables: data.final_variables,
             error: null,
@@ -511,7 +668,8 @@ const handleRunSuite = async () => {
         console.error(error);
         ElMessage.error('执行请求失败');
         executionResult.value = {
-            success: false,
+            status: 'error',
+            message: error.message || '网络或服务器错误',
             error: error.message || '网络或服务器错误'
         };
         resultDialogVisible.value = true;

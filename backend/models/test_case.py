@@ -1,9 +1,10 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import JSON # Import JSON type
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, String, ForeignKey, Text, Enum, DateTime
+from sqlalchemy import JSON
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 from core.database import Base
+import enum
 
 
 class TestCase(Base):
@@ -19,6 +20,11 @@ class TestCase(Base):
     body = Column(JSON, nullable=True)
     extract_rules = Column(JSON, nullable=True)
     assertions = Column(JSON, nullable=True)
+
+    # 新增脚本字段
+    setup_script = Column(String(5000), nullable=True)     # 前置脚本
+    teardown_script = Column(String(5000), nullable=True)  # 后置脚本
+
     module = Column(String(100), index=True, default='default') # 暂时保留，后续迁移数据后可删除
     module_id = Column(Integer, ForeignKey("test_modules.id"), nullable=True)
     

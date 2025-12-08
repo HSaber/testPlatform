@@ -40,6 +40,16 @@
       <div class="code-block">
         <pre>{{ jsonToString(testCaseData.assertions) }}</pre>
       </div>
+
+      <div v-if="testCaseData.setup_script" class="section-title">前置脚本</div>
+      <div v-if="testCaseData.setup_script" class="code-block">
+        <pre>{{ testCaseData.setup_script }}</pre>
+      </div>
+
+      <div v-if="testCaseData.teardown_script" class="section-title">后置脚本</div>
+      <div v-if="testCaseData.teardown_script" class="code-block">
+        <pre>{{ testCaseData.teardown_script }}</pre>
+      </div>
     </div>
     <div v-else>
       <p>没有可显示的用例数据。</p>
