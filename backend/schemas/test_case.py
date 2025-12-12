@@ -71,4 +71,4 @@ class TestCaseDebugResponse(BaseModel):
     url: Optional[str] = None
     method: Optional[str] = None
     # 添加提取变量结果
-    extracted_variables: Optional[Dict[str, Any]] = None
+    extract_results: Optional[Dict[str, Any]] = None

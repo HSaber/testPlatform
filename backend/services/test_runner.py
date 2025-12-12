@@ -42,20 +42,24 @@ class TestRunner:
 
         return data
 
-    def _extract_data(self, response_json: Dict[str, Any], rules: Optional[Dict[str, str]]):
+    # Fix: 更新类型提示以支持 list 类型的响应
+    def _extract_data(self, response_json: Union[Dict[str, Any], List[Any]], rules: Optional[Dict[str, str]]) -> Dict[str, Any]:
+        extracted = {}
         if not rules:
-            return
+            return extracted
         for var_name, json_path in rules.items():
             try:
                 jsonpath_expr = parse(json_path)
                 matches = [match.value for match in jsonpath_expr.find(response_json)]
                 if matches:
                     self.variables[var_name] = matches[0]
+                    extracted[var_name] = matches[0]
                     print(f"✔️ 变量提取成功: {var_name} = {matches[0]}")
                 else:
                     print(f"⚠️ 警告: 变量 '{var_name}' 在响应中未找到匹配项 (路径: {json_path})")
             except Exception as e:
                 print(f"❌ 错误: 提取变量 '{var_name}' 失败: {e}")
+        return extracted
 
     def _smart_contains(self, actual: Any, expect: Any) -> bool:
         if isinstance(expect, dict):
@@ -329,25 +333,29 @@ class TestRunner:
                     }
 
             # 3. 提取变量
-            self._extract_data(response_json, test_case.extract_rules)
+            # Fix: 允许 response_json 为 list，以便能从数组响应中提取数据
+            extracted_data = {} # 初始化为空字典
+            if response_json is not None and isinstance(response_json, (dict, list)):
+                extracted_data = self._extract_data(response_json, test_case.extract_rules)
 
-            # 4. 断言
-            # Fix: 补充 status_code 参数
-            assertion_result = self._execute_assertions(response_json, response.status_code, test_case.assertions)
-
-            # Fix: 修正变量名拼写 (assertions_result -> assertion_result)
-            final_status = assertion_result["result"]
-            
-            # Fix: 在返回前计算执行时长
+            # 4. 执行断言
+            assertion_result = {}
+            if response and test_case.assertions:
+                # Fix: 同样允许断言检查 list 类型的响应
+                resp_json = response_json if isinstance(response_json, (dict, list)) else {}
+                assertion_result = self._execute_assertions(resp_json, response.status_code, test_case.assertions)
+                
+            final_status = assertion_result.get("result", "success") # 如果没有断言，默认为成功
             duration = (datetime.now() - start_time).total_seconds()
-            
-            return {
+
+            test_result = {
                 "id": test_case.id,
                 "name": test_case.name,
                 "status": final_status, 
                 "status_code": response.status_code,
                 "response": response_json or response.text,
                 "assertions": assertion_result,
+                "extract_results": extracted_data,
                 "url": url,
                 "method": test_case.method,
                 "start_time": start_time,
@@ -357,6 +365,8 @@ class TestRunner:
                 "response_headers": dict(response.headers),
                 "response_body": response.text
             }
+
+            return test_result
 
         except httpx.RequestError as e:
             duration = (datetime.now() - start_time).total_seconds()
@@ -394,10 +404,7 @@ class TestRunner:
         print("▶️ 测试套件执行完毕")
         return results
 
-    def debug_test_case(self, test_case_data: Union[test_case_models.TestCase, test_case_schema.TestCaseDebugRequest]) -> test_case_schema.TestCaseDebugResponse:
-        """
-        调试单个测试用例，不保存结果到数据库，返回执行日志
-        """
+    def debug_test_case(self, test_case_data: test_case_schema.TestCaseCreate) -> test_case_schema.TestCaseDebugResponse:
         start_time = time.time()
         logs_capture = io.StringIO()
         
@@ -483,15 +490,16 @@ class TestRunner:
                      traceback.print_exc()
 
             # 5. 提取变量
-            if response_body and isinstance(response_body, dict):
-                # FIX: 使用 extract_rules 而不是 variables
-                self._extract_data(response_body, test_case_data.extract_rules)
+            extracted_data = {}
+            if response_body is not None and isinstance(response_body, (dict, list)):
+                print(f"🔍 [Debug] 开始提取变量: 规则={test_case_data.extract_rules}, 响应类型={type(response_body)}")
+                extracted_data = self._extract_data(response_body, test_case_data.extract_rules)
 
             # 6. 执行断言
             assertion_result = {}
             if response and test_case_data.assertions:
-                # 确保 response_body 是字典，如果不是（例如是文本），则无法进行 JSONPath 断言
-                resp_json = response_body if isinstance(response_body, dict) else {}
+                # Fix: 允许 list 类型响应进行断言
+                resp_json = response_body if isinstance(response_body, (dict, list)) else {}
                 assertion_result = self._execute_assertions(resp_json, response.status_code, test_case_data.assertions)
 
         duration = time.time() - start_time
@@ -513,7 +521,9 @@ class TestRunner:
             response_headers=response_headers,
             # 新增字段
             url=url,
-            method=method
+            method=method,
+            # 添加提取变量结果
+            extract_results=extracted_data
         )
 
     def run_full_suite(self, suite_id: int, parent_report_id: int = None):

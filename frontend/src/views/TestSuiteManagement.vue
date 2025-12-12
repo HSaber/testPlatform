@@ -193,10 +193,43 @@
                  {{ scope.row.duration ? scope.row.duration.toFixed(2) : '0.00' }}
                </template>
             </el-table-column>
-            <el-table-column label="响应/错误信息" show-overflow-tooltip>
-                <template #default="scope">
-                    {{ typeof scope.row.response === 'object' ? JSON.stringify(scope.row.response) : scope.row.response }}
-                </template>
+            <el-table-column type="expand">
+              <template #default="props">
+                 <div style="padding: 10px;">
+                    <p><strong>URL:</strong> {{ props.row.url || 'N/A' }}</p>
+                    <p><strong>Method:</strong> {{ props.row.method || 'N/A' }}</p>
+                    <p><strong>Response Code:</strong> {{ props.row.status_code }}</p>
+                    
+                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                      <strong style="margin-right: 10px;">Response Body:</strong>
+                      <el-tooltip content="复制Response Body" placement="top">
+                        <el-button 
+                          link 
+                          type="primary" 
+                          :icon="DocumentCopy" 
+                          @click="copyToClipboard(typeof props.row.response === 'object' ? JSON.stringify(props.row.response, null, 2) : props.row.response)"
+                        />
+                      </el-tooltip>
+                    </div>
+                    <pre style="max-height: 200px; overflow: auto; background: #f4f4f5; padding: 10px;">{{ 
+                      typeof props.row.response === 'object' 
+                        ? JSON.stringify(props.row.response, null, 2) 
+                        : props.row.response 
+                    }}</pre>
+
+                    <template v-if="props.row.extract_results && Object.keys(props.row.extract_results).length > 0">
+                       <p><strong>Extracted Variables:</strong></p>
+                       <el-table :data="Object.entries(props.row.extract_results).map(([key, value]) => ({ key, value }))" border stripe size="small" style="margin-bottom: 10px;">
+                            <el-table-column prop="key" label="Variable Name" />
+                            <el-table-column prop="value" label="Value">
+                              <template #default="scope">
+                                <pre style="max-height: 150px; overflow: auto;">{{ formatValue(scope.row.value) }}</pre>
+                              </template>
+                            </el-table-column>
+                       </el-table>
+                    </template>
+                 </div>
+              </template>
             </el-table-column>
         </el-table>
       </div>
@@ -285,9 +318,16 @@
                     : (props.row.response || props.row.response_body) 
                 }}</pre>
 
-                <template v-if="props.row.assertions">
-                   <p><strong>Assertions:</strong></p>
-                   <pre style="max-height: 150px; overflow: auto; background: #eef2f6; padding: 10px;">{{ JSON.stringify(props.row.assertions, null, 2) }}</pre>
+                <template v-if="props.row.extract_results && Object.keys(props.row.extract_results).length > 0">
+                   <p><strong>Extracted Variables:</strong></p>
+                   <el-table :data="Object.entries(props.row.extract_results).map(([key, value]) => ({ key, value }))" border stripe size="small" style="margin-bottom: 10px;">
+                        <el-table-column prop="key" label="Variable Name" />
+                        <el-table-column prop="value" label="Value">
+                          <template #default="scope">
+                            <pre style="max-height: 150px; overflow: auto;">{{ formatValue(scope.row.value) }}</pre>
+                          </template>
+                        </el-table-column>
+                   </el-table>
                 </template>
                 
                 <template v-if="props.row.logs">
@@ -356,6 +396,13 @@ const debugResult = ref({});
 const defaultProps = {
   children: 'children',
   label: 'name',
+};
+
+const formatValue = (value) => {
+  if (typeof value === 'object' && value !== null) {
+    return JSON.stringify(value, null, 2);
+  }
+  return value;
 };
 
 const copyToClipboard = async (text) => {

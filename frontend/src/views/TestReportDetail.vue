@@ -59,8 +59,8 @@
                             </el-descriptions>
                         </el-tab-pane>
                         <el-tab-pane label="断言结果">
-                            <el-table :data="props.row.assertion_results" border size="small">
-                                <el-table-column prop="check" label="检查点" width="120" />
+                            <el-table :data="props.row.assertions.assertion_results" border size="small">
+                                <el-table-column prop="check" label="检查点" />
                                 <el-table-column prop="expect" label="预期值">
                                     <template #default="scope">
                                         <pre style="margin:0; font-family:inherit; white-space: pre-wrap;">{{ scope.row.expect }}</pre>
@@ -79,6 +79,12 @@
                                     </template>
                                 </el-table-column>
                                 <el-table-column prop="message" label="消息" />
+                            </el-table>
+                        </el-tab-pane>
+                        <el-tab-pane label="提取结果" v-if="props.row.extract_results && Object.keys(props.row.extract_results).length > 0">
+                            <el-table :data="Object.entries(props.row.extract_results).map(([name, value]) => ({ name, value }))" border size="small">
+                                <el-table-column prop="name" label="变量名" />
+                                <el-table-column prop="value" label="提取值" />
                             </el-table>
                         </el-tab-pane>
                         <el-tab-pane label="错误信息" v-if="props.row.error_message">
