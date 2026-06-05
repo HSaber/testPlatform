@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum
+import enum
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 import enum
 
 from core.database import Base
@@ -13,6 +14,7 @@ class SuiteItemType(str, enum.Enum):
 
 class TestSuiteItem(Base):
     __tablename__ = "test_suite_items"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True)
     suite_id = Column(Integer, ForeignKey("test_suites.id"), nullable=False)
@@ -30,13 +32,14 @@ class TestSuiteItem(Base):
     sort_order = Column(Integer, default=0)
 
     # 关系定义
-    suite = relationship("TestSuite", foreign_keys=[suite_id], back_populates="items")
-    test_case = relationship("TestCase")
-    module = relationship("TestModule")
-    child_suite = relationship("TestSuite", foreign_keys=[child_suite_id])
+    suite = relationship("backend.models.test_suite.TestSuite", foreign_keys="[backend.models.test_suite.TestSuiteItem.suite_id]", backref=backref("items", cascade="all, delete-orphan", order_by="TestSuiteItem.sort_order"))
+    test_case = relationship("backend.models.test_case.TestCase")
+    module = relationship("backend.models.test_module.TestModule")
+    child_suite = relationship("backend.models.test_suite.TestSuite", foreign_keys="[backend.models.test_suite.TestSuiteItem.child_suite_id]")
 
 class TestSuite(Base):
     __tablename__ = "test_suites"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), index=True)
@@ -46,10 +49,11 @@ class TestSuite(Base):
     # 或者我们可以完全依赖 TestSuiteItem 来构建树。为了简化，这里暂时保留 parent_id 作为简单的归类，
     # 但实际的执行顺序和包含关系主要由 items 决定。）
     parent_id = Column(Integer, ForeignKey("test_suites.id"), nullable=True)
-    children = relationship("TestSuite", backref="parent", remote_side=[id], foreign_keys=[parent_id])
+    children = relationship("backend.models.test_suite.TestSuite", backref="parent", remote_side=[id], foreign_keys=[parent_id])
 
     # 统一的一对多关系
-    items = relationship("TestSuiteItem", back_populates="suite", cascade="all, delete-orphan", order_by="TestSuiteItem.sort_order", foreign_keys=[TestSuiteItem.suite_id])
+    # items relationship is created by backref in TestSuiteItem
+
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

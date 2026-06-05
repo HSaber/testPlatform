@@ -1,0 +1,675 @@
+{
+  "info": {
+    "title": "默认模块",
+    "description": "。。。。。。",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "product-cate-pure-controller"
+    }
+  ],
+  "paths": {
+    "/productCatePure/addProductCate": {
+      "post": {
+        "summary": "新增分类",
+        "deprecated": false,
+        "description": "新增分类记录信息",
+        "operationId": "addProductCate",
+        "tags": [
+          "product-cate-pure-controller"
+        ],
+        "parameters": [
+          {
+            "name": "createTime",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "date-time",
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "createName",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "createId",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int64",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "updateTime",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "date-time",
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "updateName",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "updateId",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int64",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "orderKey",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "orderType",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "endTime",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "date-time",
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "otherSql",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "searchSql",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int64",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "productTypeId",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int64",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "pid",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int64",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "enName",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "scaling",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "float",
+            "type": "number",
+            "x-example": 0
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int64",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int32",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "countview",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int64",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "chooseCount",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int64",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "sellerId",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int64",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "sellerStatus",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int32",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "childs",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/ProductCate"
+            },
+            "x-example": "",
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "x-example": "",
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "leaf",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "boolean",
+            "x-example": ""
+          },
+          {
+            "name": "addStatus",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int32",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "userLoginId",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int64",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "isUserCate",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int32",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "cateType",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int32",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "treeId",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int64",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "cateValue",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "int32",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "parameterId",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "firstLevelName",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "secondLevelName",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "thirdLevelName",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "displayName",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "useCount",
+            "in": "query",
+            "description": "使用人数",
+            "required": false,
+            "format": "int32",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "isUse",
+            "in": "query",
+            "description": "是否被使用:0-未被使用;1-已使用",
+            "required": false,
+            "format": "int32",
+            "type": "integer",
+            "x-example": 0
+          },
+          {
+            "name": "remark",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "type": "string",
+            "x-example": ""
+          },
+          {
+            "name": "percent",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "format": "double",
+            "type": "number",
+            "x-example": 0
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "description": "",
+            "default": "{{token}}",
+            "type": "string",
+            "x-example": "{{token}}"
+          },
+          {
+            "name": "clientid",
+            "in": "header",
+            "description": "",
+            "default": "e5cd7e4891bf95d1d19206ce24a7b32e",
+            "type": "string",
+            "x-example": "e5cd7e4891bf95d1d19206ce24a7b32e"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {},
+            "schema": {
+              "$ref": "#/definitions/ResultObj"
+            }
+          }
+        },
+        "security": [
+          {
+            "basic": []
+          }
+        ],
+        "produces": [
+          "application/octet-stream"
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "basic": []
+    }
+  ],
+  "swagger": "2.0",
+  "definitions": {
+    "ResultObj": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "empty": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "ProductCate": {
+      "type": "object",
+      "properties": {
+        "createTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createName": {
+          "type": "string"
+        },
+        "createId": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "updateTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updateName": {
+          "type": "string"
+        },
+        "updateId": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "deleteTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "orderKey": {
+          "type": "string"
+        },
+        "orderType": {
+          "type": "string"
+        },
+        "endTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "otherSql": {
+          "type": "string"
+        },
+        "searchSql": {
+          "type": "string"
+        },
+        "dataScopeType": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "productTypeId": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "pid": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "enName": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "scaling": {
+          "type": "number",
+          "format": "float"
+        },
+        "sort": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "status": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "countview": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "chooseCount": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "sellerId": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "sellerStatus": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "childs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ProductCate"
+          }
+        },
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "leaf": {
+          "type": "boolean"
+        },
+        "addStatus": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "userLoginId": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "isUserCate": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "cateType": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "treeId": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "cateValue": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "parameterId": {
+          "type": "string"
+        },
+        "firstLevelName": {
+          "type": "string"
+        },
+        "secondLevelName": {
+          "type": "string"
+        },
+        "thirdLevelName": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "level": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "useCount": {
+          "type": "integer",
+          "description": "使用人数",
+          "format": "int32"
+        },
+        "isUse": {
+          "type": "integer",
+          "description": "是否被使用:0-未被使用;1-已使用",
+          "format": "int32"
+        },
+        "remark": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "percent": {
+          "type": "number",
+          "format": "double"
+        },
+        "refStatus": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "useStatus": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "expireTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "number": {
+          "type": "string"
+        },
+        "binFlag": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "permissions": {
+          "uniqueItems": true,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ownerId": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    }
+  },
+  "securityDefinitions": {
+    "basic": {
+      "type": "basic"
+    }
+  },
+  "x-components": {
+    "responses": {}
+  }
+}

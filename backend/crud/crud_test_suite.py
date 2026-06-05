@@ -1,7 +1,7 @@
 from typing import List, Optional, Union, Dict, Any
 from sqlalchemy.orm import Session, joinedload
-from models.test_suite import TestSuite, TestSuiteItem
-from schemas.test_suite import TestSuiteCreate, TestSuiteUpdate, TestSuiteItemCreate
+from backend.models.test_suite import TestSuite, TestSuiteItem
+from backend.schemas.test_suite import TestSuiteCreate, TestSuiteUpdate, TestSuiteItemCreate
 
 def get_test_suite(db: Session, test_suite_id: int):
     return db.query(TestSuite).options(

@@ -29,7 +29,7 @@ export const apiDeleteTestCase = (id) => {
 };
 
 export const apiBatchDeleteTestCases = (ids) => {
-  return apiClient.post('/testcases/batch', { ids });
+  return apiClient.post('/testcases/batch_delete', { test_case_ids: ids });
 };
 
 export const apiGetTestModules = () => {
@@ -124,4 +124,20 @@ export const apiGetTestReports = (skip = 0, limit = 100) => {
 // 获取单个测试报告详情
 export const apiGetTestReportDetail = (reportId) => {
   return apiClient.get(`/reports/${reportId}`);
+};
+// -----------------------------------------------------------------------------
+    // Test Case Generator API
+    // -----------------------------------------------------------------------------
+
+    // 生成测试用例
+export const apiGenerateTestCases = (openapiSpecContent) => {
+  return apiClient.post('/generate_test_cases', { openapi_spec: openapiSpecContent });
+};
+
+export const apiGenerateTestCasesBatch = (batchContext) => {
+  return apiClient.post('/generate_test_cases/batch', { batch_context: batchContext });
+};
+
+export const apiImportTestCases = (testCases, moduleId = null) => {
+  return apiClient.post('/generate_test_cases/import', { test_cases: testCases, module_id: moduleId });
 };

@@ -1,24 +1,32 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from fastapi import FastAPI, Depends, HTTPException
+import yaml  # 导入 yaml 模块
+from backend.api import router # 使用绝对导入
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
-from core.database import SessionLocal, engine, Base
-from models import test_case as test_case_model
-from models import test_module as test_module_model
-from crud import crud_test_case, crud_test_module
-from schemas import test_case as test_case_schema
-from schemas import test_module as test_module_schema
-from services.test_runner import TestRunner
+from backend.core.database import SessionLocal, engine, Base
+from backend.models import test_case as test_case_model
+from backend.models import test_module as test_module_model
+from backend.crud import crud_test_case, crud_test_module
+from backend.schemas import test_case as test_case_schema
+from backend.schemas import test_module as test_module_schema
+from backend.services.test_runner import TestRunner
 from typing import List
 from pydantic import BaseModel
-from schemas import test_suite as test_suite_schema
-from crud import crud_test_suite
-from crud import crud_test_report
-from schemas import test_report as test_report_schema
+from backend.schemas import test_suite as test_suite_schema
+from backend.crud import crud_test_suite
+from backend.crud import crud_test_report
+from backend.schemas import test_report as test_report_schema
+import json
 
 test_case_model.Base.metadata.create_all(bind=engine)
 test_module_model.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
 
 # CORS 中间件配置
 origins = [
@@ -46,11 +54,11 @@ def create_test_case(test_case: test_case_schema.TestCaseCreate, db: Session = D
     """
     创建一个新的测试用例
     """
-    return crud_test_case.create_test_case(db=db, test_case=test_case)
+    return crud_test_case.crud_test_case.create_test_case(db=db, test_case=test_case)
 
 @app.get("/testcases/list", response_model=List[test_case_schema.TestCase])
 def read_test_cases(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    test_cases = crud_test_case.get_test_cases(db, skip=skip, limit=limit)
+    test_cases = crud_test_case.crud_test_case.get_test_cases(db, skip=skip, limit=limit)
     return test_cases
 
 @app.get("/testcases/{test_case_id}", response_model=test_case_schema.TestCase)
@@ -58,7 +66,7 @@ def read_test_case(test_case_id: int, db: Session = Depends(get_db)):
     """
     获取单个测试用例详情
     """
-    db_test_case = crud_test_case.get_test_case(db, test_case_id=test_case_id)
+    db_test_case = crud_test_case.crud_test_case.get_test_case(db, test_case_id=test_case_id)
     if db_test_case is None:
         raise HTTPException(status_code=404, detail="Test case not found")
     return db_test_case
@@ -68,7 +76,7 @@ def update_test_case(test_case_id: int, test_case: test_case_schema.TestCaseUpda
     """
     更新一个测试用例
     """
-    db_test_case = crud_test_case.update_test_case(db=db, test_case_id=test_case_id, test_case=test_case)
+    db_test_case = crud_test_case.crud_test_case.update_test_case(db=db, test_case_id=test_case_id, test_case=test_case)
     if db_test_case is None:
         raise HTTPException(status_code=404, detail="Test case not found")
     return db_test_case
@@ -78,14 +86,14 @@ def delete_test_case(test_case_id: int, db: Session = Depends(get_db)):
     """
     删除一个测试用例
     """
-    db_test_case = crud_test_case.delete_test_case(db=db, test_case_id=test_case_id)
+    db_test_case = crud_test_case.crud_test_case.delete_test_case(db=db, test_case_id=test_case_id)
     if db_test_case is None:
         raise HTTPException(status_code=404, detail="Test case not found")
     return db_test_case
 
 @app.post("/testcases/batch_delete")
 def batch_delete_test_cases(batch: test_case_schema.TestCaseBatchDelete, db: Session = Depends(get_db)):
-    crud_test_case.batch_delete_test_cases(db, batch.test_case_ids)
+    crud_test_case.crud_test_case.delete_test_cases(db, batch.test_case_ids)
 
 
 @app.post("/testcases/debug", response_model=test_case_schema.TestCaseDebugResponse)
@@ -96,7 +104,7 @@ def debug_test_case(test_case: test_case_schema.TestCaseDebugRequest, db: Sessio
 
 @app.post("/testcases/copy/{test_case_id}", response_model=test_case_schema.TestCase)
 def copy_test_case(test_case_id: int, db: Session = Depends(get_db)):
-    db_test_case = crud_test_case.copy_test_case(db, test_case_id=test_case_id)
+    db_test_case = crud_test_case.crud_test_case.copy_test_case(db, test_case_id=test_case_id)
     if db_test_case is None:
         raise HTTPException(status_code=404, detail="Test case not found")
     return db_test_case
@@ -124,7 +132,10 @@ class TestCaseReorder(BaseModel):
 
 @app.post("/testcases/reorder")
 def reorder_test_cases(test_case_reorder: TestCaseReorder, db: Session = Depends(get_db)):
-    updated_test_cases = crud_test_case.reorder_test_cases(db=db, test_case_ids=test_case_reorder.test_case_ids)
+    """
+    重新排序测试用例
+    """
+    updated_test_cases = crud_test_case.crud_test_case.reorder_test_cases(db=db, test_case_ids=test_case_reorder.test_case_ids)
     return {"message": "Test cases reordered successfully", "updated_count": len(updated_test_cases)}
 
 # --- Test Modules API ---
@@ -229,3 +240,18 @@ def read_test_report(report_id: int, db: Session = Depends(get_db)):
     if db_report is None:
         raise HTTPException(status_code=404, detail="Test report not found")
     return db_report
+
+# 注册 api 模块的路由
+app.include_router(router)
+
+# 在启动时加载 OpenAPI 规范并生成路由
+# 确保文件路径正确
+try:
+    with open("D:\\workspace\\testPlatform\\backend\\默认模块.swagger.json", "r", encoding='utf-8') as f:
+        openapi_spec = json.load(f)
+    from backend.api import generate_api_routes
+    generate_api_routes(router, openapi_spec)
+except FileNotFoundError:
+    print("错误: 找不到 OpenAPI 规范文件")
+except Exception as e:
+    print(f"错误: 加载 OpenAPI 规范失败: {e}")    

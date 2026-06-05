@@ -6,6 +6,7 @@ import ModuleManagement from '../views/ModuleManagement.vue'
 import TestSuiteManagement from '../views/TestSuiteManagement.vue'
 import TestReportList from '../views/TestReportList.vue'
 import TestReportDetail from '../views/TestReportDetail.vue'
+import TestCaseGenerator from '../components/TestCaseGenerator.vue' // 导入 TestCaseGenerator 组件
 
 const routes = [
   {
@@ -43,6 +44,11 @@ const routes = [
     path: '/edit/:id',
     name: 'EditTestCase',
     component: TestCaseForm
+  },
+  {
+    path: '/test-case-generator',
+    name: 'test-case-generator',
+    component: TestCaseGenerator // 添加路由
   }
 ]
 

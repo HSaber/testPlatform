@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
-import { Folder, Collection, Document } from '@element-plus/icons-vue'
+import { Folder, Collection, Document, List, MagicStick } from '@element-plus/icons-vue'
+import TestCaseGenerator from './components/TestCaseGenerator.vue' // 导入组件
 
 const route = useRoute()
 
@@ -19,7 +20,10 @@ const activeMenu = computed(() => {
       <div class="header-content">
         <h2 style="margin: 0;">API Test Platform</h2>
         <el-menu mode="horizontal" :router="true" :default-active="activeMenu" style="flex-grow: 1; justify-content: flex-end;">
-          <el-menu-item index="/">用例管理</el-menu-item>
+          <el-menu-item index="/">
+            <el-icon><List /></el-icon>
+            <span>用例管理</span>
+          </el-menu-item>
           <el-menu-item index="/modules">
             <el-icon><Folder /></el-icon>
             <span>模块管理</span>
@@ -31,6 +35,10 @@ const activeMenu = computed(() => {
           <el-menu-item index="/reports">
             <el-icon><Document /></el-icon>
             <span>测试报告</span>
+          </el-menu-item>
+          <el-menu-item index="/test-case-generator">
+            <el-icon><MagicStick /></el-icon>
+            <span>测试用例生成器</span>
           </el-menu-item>
         </el-menu>
       </div>

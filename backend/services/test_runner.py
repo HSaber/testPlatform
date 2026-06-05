@@ -10,10 +10,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from jsonpath_ng import parse
 
 from sqlalchemy.orm import Session
-from crud import crud_test_case, crud_test_suite, crud_test_report
-from schemas import test_case as test_case_schema, test_report as report_schema
-from models import test_case as test_case_models
-from core.config import API_BASE_URL
+from backend.crud import crud_test_case, crud_test_suite, crud_test_report
+from backend.schemas import test_case as test_case_schema, test_report as report_schema
+from backend.models import test_case as test_case_models
+from backend.core.config import API_BASE_URL
 import traceback # 新增导入
 
 class TestRunner:

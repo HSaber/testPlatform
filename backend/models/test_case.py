@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, Enum, DateTime
-from sqlalchemy import JSON
+from sqlalchemy import JSON, Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -9,6 +8,7 @@ import enum
 
 class TestCase(Base):
     __tablename__ = "test_cases"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), index=True)
@@ -28,7 +28,7 @@ class TestCase(Base):
     module = Column(String(100), index=True, default='default') # 暂时保留，后续迁移数据后可删除
     module_id = Column(Integer, ForeignKey("test_modules.id"), nullable=True)
     
-    module_obj = relationship("TestModule", back_populates="test_cases")
+    module_obj = relationship("backend.models.test_module.TestModule", backref="test_cases")
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

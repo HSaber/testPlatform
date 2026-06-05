@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session, joinedload
-from models import test_report as report_model
-from schemas import test_report as report_schema
+from backend.models import test_report as report_model
+from backend.schemas import test_report as report_schema
 from typing import List, Optional
 
 def create_test_report(db: Session, report: report_schema.TestReportCreate) -> report_model.TestReport:

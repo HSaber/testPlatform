@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from models.test_module import TestModule
-from schemas.test_module import TestModuleCreate, TestModuleUpdate
+from backend.models.test_module import TestModule
+from backend.schemas.test_module import TestModuleCreate, TestModuleUpdate
 
 def get_test_module(db: Session, module_id: int):
     return db.query(TestModule).filter(TestModule.id == module_id).first()

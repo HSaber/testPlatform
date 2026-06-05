@@ -23,6 +23,9 @@ ENV_CONFIGS = {
 # 在不同代码分支的部署/运行脚本中，可以通过设置环境变量 APP_ENV 来切换配置
 APP_ENV = os.getenv("APP_ENV", "dev")
 
+DEEPSEEK_API_URL = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-8c6890a6e4c340f8bf5e97a320d8859c") # 替换为你的 DeepSeek API Key
+
 # 获取当前环境的配置
 CURRENT_ENV_CONFIG = ENV_CONFIGS.get(APP_ENV, ENV_CONFIGS["dev"])
 API_BASE_URL = CURRENT_ENV_CONFIG["API_BASE_URL"]

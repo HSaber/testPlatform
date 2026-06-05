@@ -1,11 +1,14 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Float
 from sqlalchemy import JSON  # Fix: Use generic JSON for MySQL compatibility
+from sqlalchemy import JSON  # Fix: Use generic JSON for MySQL compatibility
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from core.database import Base
 
 class TestReport(Base):
     __tablename__ = "test_reports"
+    __table_args__ = {'extend_existing': True}
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True)
     suite_id = Column(Integer, ForeignKey("test_suites.id"), nullable=True) # 可以为空，支持单用例执行
@@ -23,6 +26,7 @@ class TestReport(Base):
 
 class TestRecord(Base):
     __tablename__ = "test_records"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True)
     report_id = Column(Integer, ForeignKey("test_reports.id"), nullable=False)
